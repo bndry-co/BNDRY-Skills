@@ -1,0 +1,144 @@
+[
+  {
+    "$formkit": "multi-step",
+    "name": "form_name",
+    "tab-style": "progress",
+    "outerClass": "!max-w-none",
+    "wrapperClass": "!max-w-none",
+    "children": [
+      {
+        "$formkit": "step",
+        "name": "step_1",
+        "label": "Step 1",
+        "stepInnerClass": "grid grid-cols-2 gap-4",
+        "children": [
+          {
+            "$el": "h2",
+            "children": "Section Heading",
+            "attrs": {
+              "class": "text-midnight-700 font-bold dark:text-midnight-300 !block mb-1.5 formkit-label !col-span-2"
+            }
+          },
+          {
+            "$el": "div",
+            "attrs": {
+              "class": "mb-4 !col-span-2"
+            },
+            "children": [
+              {
+                "$el": "p",
+                "children": "Brief instructional text for this section."
+              }
+            ]
+          },
+          {
+            "$formkit": "text",
+            "name": "example_field",
+            "label": "Example Field",
+            "validation": "required",
+            "outerClass": "!col-span-2"
+          },
+          {
+            "$formkit": "datepicker",
+            "name": "example_date",
+            "label": "Date",
+            "clearable": true,
+            "format": {
+              "date": "long"
+            },
+            "overlay": true,
+            "pickerOnly": true,
+            "sequence": [
+              "day"
+            ],
+            "validation": "required",
+            "outerClass": "!col-span-2"
+          },
+          {
+            "$formkit": "datepicker",
+            "name": "example_datetime",
+            "label": "Date and Time",
+            "clearable": true,
+            "format": {
+              "date": "long",
+              "time": "short"
+            },
+            "overlay": true,
+            "pickerOnly": true,
+            "sequence": [
+              "day",
+              "time"
+            ],
+            "outerClass": "!col-span-2"
+          },
+          {
+            "$formkit": "radio",
+            "id": "example_toggle",
+            "name": "example_toggle",
+            "label": "Example Toggle",
+            "options": [
+              { "label": "Yes", "value": "yes" },
+              { "label": "No", "value": "no" }
+            ],
+            "validation": "required",
+            "outerClass": "!col-span-2"
+          },
+          {
+            "$formkit": "textarea",
+            "name": "example_conditional",
+            "label": "Conditional Field",
+            "if": "$get(example_toggle).value === 'yes'",
+            "key": "example_conditional",
+            "outerClass": "!col-span-2"
+          },
+          {
+            "$formkit": "repeater",
+            "name": "example_items",
+            "label": "Example Items",
+            "addLabel": "Add Item",
+            "min": 1,
+            "max": 5,
+            "outerClass": "!max-w-none !col-span-2",
+            "contentClass": "grid grid-cols-2 gap-4",
+            "children": [
+              {
+                "$formkit": "text",
+                "name": "item_name",
+                "label": "Name",
+                "outerClass": "!col-span-1"
+              },
+              {
+                "$formkit": "text",
+                "name": "item_value",
+                "label": "Value",
+                "outerClass": "!col-span-1"
+              },
+              {
+                "$formkit": "textarea",
+                "name": "item_notes",
+                "label": "Notes",
+                "outerClass": "!col-span-2"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "$formkit": "step",
+        "if": "$get(example_toggle).value === 'yes'",
+        "key": "step_2_conditional",
+        "name": "step_2",
+        "label": "Step 2 (conditional)",
+        "stepInnerClass": "grid grid-cols-2 gap-4",
+        "children": [
+          {
+            "$formkit": "text",
+            "name": "step_2_field",
+            "label": "Only shown — and only in the progress bar — when example_toggle is Yes",
+            "outerClass": "!col-span-2"
+          }
+        ]
+      }
+    ]
+  }
+]

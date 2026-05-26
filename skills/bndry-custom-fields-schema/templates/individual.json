@@ -1,0 +1,125 @@
+{
+  "groups": [
+    {
+      "key": "employment",
+      "label": "Employment",
+      "fieldDefinitions": [
+        {
+          "key": "employment_type",
+          "label": "Employment Type",
+          "helpText": "Nature of the individual's primary employment arrangement.",
+          "select": {
+            "placeholder": "Please select one",
+            "options": [
+              { "value": "full_time", "label": "Full-time" },
+              { "value": "part_time", "label": "Part-time" },
+              { "value": "self_employed", "label": "Self-employed" },
+              { "value": "contractor", "label": "Contractor" },
+              { "value": "retired", "label": "Retired" },
+              { "value": "unemployed", "label": "Unemployed" },
+              { "value": "student", "label": "Student" },
+              { "value": "other", "label": "Other" }
+            ]
+          }
+        },
+        {
+          "key": "industry",
+          "label": "Industry",
+          "helpText": "Sector in which the individual is employed or operates.",
+          "text": {}
+        }
+      ]
+    },
+    {
+      "key": "source_of_funds",
+      "label": "Source of Funds",
+      "fieldDefinitions": [
+        {
+          "key": "funds_types",
+          "label": "Income Types",
+          "helpText": "Select all income sources that apply.",
+          "checkbox": {
+            "options": [
+              { "value": "salary", "label": "Salary / Wages" },
+              { "value": "business_income", "label": "Business Income" },
+              { "value": "investment_income", "label": "Investment Income" },
+              { "value": "rental_income", "label": "Rental Income" },
+              { "value": "superannuation_pension", "label": "Superannuation / Pension" },
+              { "value": "government_benefits", "label": "Government Benefits" },
+              { "value": "inheritance", "label": "Inheritance" },
+              { "value": "gift", "label": "Gift" },
+              { "value": "sale_of_property", "label": "Sale of Property" },
+              { "value": "sale_of_assets", "label": "Sale of Assets" },
+              { "value": "gambling_winnings", "label": "Gambling Winnings" },
+              { "value": "trust_distribution", "label": "Trust Distribution" },
+              { "value": "compensation_insurance_payout", "label": "Compensation / Insurance Payout" },
+              { "value": "cryptocurrency", "label": "Cryptocurrency" },
+              { "value": "loan", "label": "Loan" },
+              { "value": "other", "label": "Other" }
+            ]
+          }
+        },
+        {
+          "key": "funds_approximate_annual_amount",
+          "label": "Approximate Annual Amount (AUD)",
+          "number": {
+            "min": 0,
+            "step": 0.01,
+            "numberType": "NUMBER_TYPE_FLOAT"
+          }
+        },
+        {
+          "key": "funds_description",
+          "label": "Income Description",
+          "helpText": "Employer name, business type, investment platform, etc.",
+          "textarea": {}
+        }
+      ]
+    },
+    {
+      "key": "source_of_wealth",
+      "label": "Source of Wealth",
+      "fieldDefinitions": [
+        {
+          "key": "wealth_types",
+          "label": "Asset Types",
+          "helpText": "Select all wealth sources that apply.",
+          "checkbox": {
+            "options": [
+              { "value": "employment", "label": "Employment" },
+              { "value": "business_ownership", "label": "Business Ownership" },
+              { "value": "property_ownership", "label": "Property Ownership" },
+              { "value": "investment_portfolios", "label": "Investment Portfolios" },
+              { "value": "sale_of_assets", "label": "Sale of Assets" },
+              { "value": "sale_of_property", "label": "Sale of Property" },
+              { "value": "savings", "label": "Savings" },
+              { "value": "superannuation_pension", "label": "Superannuation / Pension" },
+              { "value": "trust_distribution", "label": "Trust Distribution" },
+              { "value": "inheritance", "label": "Inheritance" },
+              { "value": "legal_settlement", "label": "Legal Settlement" },
+              { "value": "compensation_insurance_payout", "label": "Compensation / Insurance Payout" },
+              { "value": "cryptocurrency", "label": "Cryptocurrency" },
+              { "value": "gift", "label": "Gift" },
+              { "value": "other", "label": "Other" }
+            ]
+          }
+        },
+        {
+          "key": "wealth_approximate_value",
+          "label": "Approximate Total Value (AUD)",
+          "number": {
+            "min": 0,
+            "step": 0.01,
+            "numberType": "NUMBER_TYPE_FLOAT"
+          }
+        },
+        {
+          "key": "wealth_description",
+          "label": "Wealth Description",
+          "helpText": "Property address, business name, investment type, etc.",
+          "textarea": {}
+        }
+      ]
+    }
+  ]
+}

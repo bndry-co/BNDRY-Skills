@@ -1,0 +1,152 @@
+{
+  "groups": [
+    {
+      "key": "business_profile",
+      "label": "Business Profile",
+      "fieldDefinitions": [
+        {
+          "key": "business_purpose",
+          "label": "Business Purpose / Description",
+          "helpText": "What the business does, its products or services, and how it generates revenue.",
+          "textarea": {}
+        },
+        {
+          "key": "date_trading_commenced",
+          "label": "Date Operations / Trading Commenced",
+          "helpText": "The date the business began trading, which may differ from its registration date.",
+          "date": {}
+        },
+        {
+          "key": "target_market",
+          "label": "Target Market",
+          "text": {}
+        },
+        {
+          "key": "use_case",
+          "label": "Use Case",
+          "text": {}
+        },
+        {
+          "key": "channels",
+          "label": "Channels",
+          "text": {}
+        },
+        {
+          "key": "acnc_number",
+          "label": "ACNC Number",
+          "helpText": "Only applicable if the organisation is registered as a charity or not-for-profit.",
+          "text": {}
+        }
+      ]
+    },
+    {
+      "key": "operations",
+      "label": "Operations & Cross-Border",
+      "fieldDefinitions": [
+        {
+          "key": "offshore_operations",
+          "label": "Offshore Operations",
+          "helpText": "Are any employees or outsourced staff located outside of Australia?",
+          "radio": {
+            "options": [
+              { "value": "yes", "label": "Yes" },
+              { "value": "no", "label": "No" }
+            ]
+          }
+        },
+        {
+          "key": "countries_of_operation",
+          "label": "Countries of Operation",
+          "helpText": "Which countries are those employees or staff located in?",
+          "text": {}
+        },
+        {
+          "key": "facilitates_cross_border",
+          "label": "Facilitate Cross-Border Transactions?",
+          "radio": {
+            "options": [
+              { "value": "yes", "label": "Yes" },
+              { "value": "no", "label": "No" }
+            ]
+          }
+        },
+        {
+          "key": "cross_border_countries",
+          "label": "Countries of Cross-Border Transactions",
+          "text": {}
+        }
+      ]
+    },
+    {
+      "key": "payment_solutions",
+      "label": "Payment Solutions",
+      "fieldDefinitions": [
+        {
+          "key": "payin_solutions",
+          "label": "Payin / Collection Solutions",
+          "checkbox": {
+            "options": [
+              { "value": "visa_mastercard", "label": "Visa/Mastercard" },
+              { "value": "amex", "label": "AMEX" },
+              { "value": "va", "label": "VA" },
+              { "value": "pipu", "label": "PiPu" },
+              { "value": "bpay", "label": "BPay" },
+              { "value": "payto", "label": "PayTo" },
+              { "value": "direct_debit", "label": "Direct Debit" },
+              { "value": "payouts_only", "label": "N/A (Payouts only)" }
+            ]
+          }
+        },
+        {
+          "key": "payout_solutions",
+          "label": "Payout / Disbursement Solutions",
+          "checkbox": {
+            "options": [
+              { "value": "npp", "label": "NPP" },
+              { "value": "npp_ifti", "label": "NPP (IFTI)" },
+              { "value": "bpay", "label": "BPay" },
+              { "value": "direct_credit", "label": "Direct Credit" },
+              { "value": "payins_only", "label": "N/A (Payins only)" }
+            ]
+          }
+        },
+        {
+          "key": "transaction_limit_cards",
+          "label": "Transaction Limit (Cards Only)",
+          "helpText": "Amount in AUD.",
+          "number": {
+            "min": 0,
+            "step": 0.01,
+            "numberType": "NUMBER_TYPE_FLOAT"
+          }
+        }
+      ]
+    },
+    {
+      "key": "austrac",
+      "label": "AUSTRAC",
+      "fieldDefinitions": [
+        {
+          "key": "aan",
+          "label": "AUSTRAC Account Number",
+          "text": {}
+        },
+        {
+          "key": "registration_number",
+          "label": "AUSTRAC Registration Number",
+          "text": {}
+        },
+        {
+          "key": "registration_type",
+          "label": "AUSTRAC Registration Type",
+          "text": {}
+        },
+        {
+          "key": "registration_date_of_issue",
+          "label": "AUSTRAC Registration Date of Issue",
+          "date": {}
+        }
+      ]
+    }
+  ]
+}
