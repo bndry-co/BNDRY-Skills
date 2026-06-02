@@ -150,6 +150,9 @@ Schema Progress:
 - [ ] Multi-step root has a stable `name` property (prevents hydration key mismatch on reload)
 - [ ] No field `name` matches any step `name` in the same form (name collision)
 - [ ] No duplicate field `name` values within the same step
+- [ ] Required fields with long question/sentence labels override the message via `validationMessages: { "required": "This question is required" }` (short noun labels keep the default)
+- [ ] No `required` used where it should be conditional — gate the field behind an `if` (and mark it required there) or make it optional; never require an identifier only some entity types have (e.g. a company number on a form that allows sole traders)
+- [ ] Long reference content uses a real `<ul>`/`<details>` block, not a comma run-on paragraph
 ```
 
 ---
@@ -189,6 +192,8 @@ Run every check below against the schema. For each violation found, report:
    - Any field where `id` and `name` differ? → Make them match — diverging values create a confusing disconnect between expression scoping and submitted data keys
    - Any `$get()` used inside a repeater's children? → Remove; `$get()` resolves at form/step scope, not the current repeater row, so the result is always the form-level value — intra-row conditionals must be handled at the app level
    - Any repeater node with a `validation` property? → Remove it — FormKit does not apply validation to the repeater wrapper; use `min: 1` to require at least one entry
+   - Any field with a `required` rule whose label is a long question/sentence and no `validationMessages.required` override? → Add `validationMessages: { "required": "This question is required" }` so the error doesn't echo the whole question (leave short noun labels on the default)
+   - Any `required` field that only applies under certain answers, or an identifier only some entity types have (e.g. a company number with sole-trader/partnership options)? → `required` can't be conditional; gate a required copy behind an `if`, or make the field optional
    - Any single checkbox conditional using `=== 'true'` or `=== 'yes'` instead of `=== true`? → Fix to boolean comparison — single checkboxes return `true`/`false`, not strings
    - Any step whose entire content is wrapped in conditional `$el: "div"` blocks driven by the same expression? → Move the `if` (and a `key`) onto the `$formkit: "step"` node itself so the step is hidden from the progress bar when not applicable, instead of rendering an empty step
    - Any separate `checkbox`/`radio` sibling field used to gate an "Other — specify" text input below a checkbox group? → Fold "Other" into the parent checkbox group's `options` array, or render the "specify" text field unconditionally — the sibling field creates a visible gap and (for checkbox groups) can't gate the conditional anyway
@@ -539,6 +544,13 @@ Do **not** write `=== 'true'` or `=== 'yes'` — the condition will silently nev
 
 **`$get()` inside repeater children** — `$get()` resolves at the **form/step scope**, not the current repeater row. You cannot use `$get()` to reference a sibling field within the same repeater row. There is no safe way to implement intra-row conditionals in FormKit JSON schemas. If intra-row conditional logic is required, it must be handled at the app level.
 
+**`required` cannot be made conditional.** There is no `requiredIf`-style rule that reads another field — `validation` is static per field. So a field that should only be mandatory under some answers has two options:
+
+1. **Put the field inside a conditional `$el: "div"` / step that only renders under that answer**, and mark it `required` there. When the wrapper is hidden the field isn't rendered, so `required` doesn't block submission (this is how gated steps work — `required` on a step's fields only applies when that step is shown).
+2. **Make it plainly optional** (drop `required`, keep any format `matches`) when it's always visible but only sometimes applicable.
+
+Corollary — **don't make an identifier `required` that only some entity types possess.** Requiring a company number on a form whose entity-type options include Sole Trader / Partnership / Trust silently blocks those entities from submitting — they have no such number to enter. Either gate a `required` copy behind the company-type condition, or make the field optional. The same trap applies to any "everyone fills this" field that's really "only some do".
+
 ### Computed Display Fields
 
 - **NEVER** use a `$formkit` input with a `value` expression for calculated fields — this creates an infinite re-render loop that bricks the app.
@@ -588,6 +600,44 @@ Use the inline class pattern above. Do not invent new colour values — read the
 - **Intro/instructional text divs** (wrapper `$el: "div"` containing `$el: "p"`) must have `attrs.class: "mb-4 !col-span-2"` to separate them from the fields below and to span both grid columns.
 - **`$el` heading immediately after another `$el` heading** (e.g. h3 after h2) — add `mt-2` to the second heading's class to prevent them running together.
 - **Computed display blocks** — wrap related score/rating elements in a parent `$el: "div"` with `attrs.class: "mt-4 mb-6 !col-span-2"` for visual separation. Use `text-2xl font-semibold` on the value display and `text-sm opacity-70` on helper text for hierarchy.
+
+**`$el` accepts any HTML tag, not just `div`/`p`.** Two patterns are worth using for reference or instructional content:
+
+- **Long reference content → a real list, not a comma run-on.** A sentence like "Sanctioned countries include: A, B, C, … N" crammed into one `$el: "p"` is hard to scan. Use `$el: "ul"` (`list-disc pl-5`) with an `$el: "li"` per item.
+- **Reference content that shouldn't dominate the step → a native `<details>`/`<summary>` disclosure.** `$el: "details"` with an `$el: "summary"` child is a collapsible block with pointer text — no scripting, keyboard-accessible, works in light and dark mode, collapsed by default (add `"open": true` to start open). Style it with utility classes (`$el` nodes aren't styled automatically), keeping to standard ones (`cursor-pointer`, `select-none`, `list-disc`, `pl-5`, `opacity-70`).
+
+```json
+{
+  "$el": "details",
+  "attrs": { "class": "mb-4 !col-span-2" },
+  "children": [
+    { "$el": "summary", "attrs": { "class": "cursor-pointer select-none text-sm font-medium" }, "children": "Which countries and regions are sanctioned?" },
+    { "$el": "ul", "attrs": { "class": "list-disc pl-5 mt-2 text-sm opacity-70 space-y-1" }, "children": [
+      { "$el": "li", "children": "Afghanistan" },
+      { "$el": "li", "children": "Belarus" }
+    ] }
+  ]
+}
+```
+
+### Validation messages for long labels
+
+The default `required` message is `"<label> is required."`. When a field's label is a full question or long sentence — common on compliance forms — the default echoes the entire question back, which reads badly.
+
+Override the message per rule with `validationMessages` (an object keyed by rule name):
+
+```json
+{
+  "$formkit": "radio",
+  "name": "sanctioned_trade",
+  "id": "sanctioned_trade",
+  "label": "Does your business … trade in products or services …?",
+  "validation": "required",
+  "validationMessages": { "required": "This question is required" }
+}
+```
+
+Apply this to every **required** field whose label is a question or long sentence. **Leave short noun labels on the default** — "Legal Company Name is required" is clearer than "This question is required" for a plainly-labelled input. `validationMessages` is per-input; there is no form-level default, so set it on each field that needs it.
 
 ### Regex in `matches` Validation
 
@@ -656,3 +706,5 @@ Each row below is a recurring schema authoring mistake. Apply the corresponding 
 | Saved form data lost on reload | `$formkit: "multi-step"` node has no `name` — FormKit auto-assigns an incrementing key (`multi-step_1`, `multi-step_2`, etc.) on each mount. Data saved under `multi-step_2` won't be found when the form remounts as `multi-step_1`, so the form appears blank | Add a stable `name` to the multi-step node (e.g. `"name": "incident_uar"`) so saved data is always keyed consistently |
 | Datepicker rejects valid dates | Hardcoded `maxDate` or `minDate` on a datepicker (e.g. `"maxDate": "2002-12-31"` on a DOB field intended to enforce 18+) — the constraint becomes stale as time passes and blocks legitimately valid dates | Do not use hardcoded date bounds as age gates. Remove `maxDate`/`minDate` unless the field genuinely requires a fixed calendar boundary (e.g. "date must be before 2025-01-01"). Age-based validation belongs in application logic, not the schema |
 | Signature canvas doesn't render or scale | `$formkit: "signature"` placed inside a `repeater` — the `ResizeObserver`-based canvas scaling doesn't work correctly within repeater rows | Place signature fields as direct step children, not inside repeaters |
+| Validation error echoes the whole question | Default `required` message is `"<label> is required."`; on a sentence/question label it repeats the entire question | Add `validationMessages: { "required": "This question is required" }` to that field (keep short noun labels on the default) |
+| An entity type can't submit | A `required` identifier that only some entity types possess (e.g. a company number required, but Sole Trader/Partnership/Trust selected) blocks those users — they have nothing valid to enter | `required` can't be conditional; gate a required copy behind an `if` for the applicable types, or make the field optional |
