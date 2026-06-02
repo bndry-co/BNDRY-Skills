@@ -120,7 +120,7 @@ Schema Progress:
 - [ ] Scoring selects have default `value: "0"` to prevent NaN
 - [ ] Conditional nodes have `key` property
 - [ ] All `$formkit` children inside conditional `$el` wrapper divs have `key` properties
-- [ ] No checkbox groups used as conditional triggers (use `radio` instead)
+- [ ] No checkbox groups used as conditional triggers (use `radio` for a single Yes/No gate; use one single-checkbox field per option for a "select all that apply" checklist where each option gates its own section)
 - [ ] Computed displays use `$el` divs (no `$formkit` with computed `value`)
 - [ ] No inline `style` attributes — rely on centralised FormKit theme
 - [ ] No custom colours or backgrounds on `$formkit` nodes
@@ -179,7 +179,7 @@ Run every check below against the schema. For each violation found, report:
    - Any conditional node missing a `key` property? → Add `key`
    - Any `$formkit` fields inside conditional `$el` wrapper divs missing `key` properties? → Add `key` matching field `name`
    - Any `$field_name` references instead of `$get(id).value`? → Replace with `$get()`
-   - Any checkbox group used as a conditional trigger (`$get(checkbox_id).value === 'value'`)? → Replace with `radio` input
+   - Any checkbox group used as a conditional trigger (`$get(checkbox_id).value === 'value'`)? → Replace with a `radio` (single gate) or, for a "select all that apply" set where each option reveals its own section, one single-checkbox field per option gated with `=== true`
    - Any scoring select without a default `value: "0"`? → Add default value
    - Any arithmetic on select values without `* 1` cast? → Add `* 1`
    - Any `|| 0` fallback in a `children` expression? → Remove and use default values instead
@@ -509,6 +509,21 @@ $get(score).value * 1 + $get(other).value * 1
 
 **Checkbox groups cannot be used as conditional triggers.** Checkbox groups return arrays, so `$get(id).value === 'value'` compares an array to a string — it will **never match**. And you cannot use `.includes()` (method chaining crashes the app). If you need a Yes/No toggle that gates other fields, use a `radio` input instead.
 
+**"Select all that apply" where each option gates its own section — use individual single checkboxes, not a checkbox group.** When the form is a multi-select *and* each selected option needs to reveal its own follow-up fields (e.g. "Who is your business regulated by?" → AUSTRAC / ASIC / AFCA, each unlocking that regulator's licence details), the instinct is one `checkbox` field with an `options` array. That cannot work: a checkbox group returns an array, so no `$get(group).value === 'austrac'` gate will ever fire, and `.includes()` crashes. Do **not** fall back to a stack of separate Yes/No `radio` fields — it reads as an interrogation, not a checklist, and is the wrong UX.
+
+Instead, render **one single-checkbox field per option** (each a bare boolean `checkbox` with no `options` array, its own `name`/`id`, laid out with `!col-span-1` to form a compact 2-column checklist under a shared `$el: "h3"` heading). Visually this is identical to the multi-select the form intended — a "select all that apply" checklist — but because each box is its own boolean field, each one gates its section cleanly with `=== true`, and each becomes an independently filterable/reportable field (often *better* for downstream reporting than a single array field). This is the recommended pattern for a "multi-select that drives conditionals".
+
+```json
+{ "$el": "h3", "children": "Who is your business regulated by?", "attrs": { "class": "<heading classes> !col-span-2" } },
+{ "$formkit": "checkbox", "name": "regulated_by_austrac", "id": "regulated_by_austrac", "label": "AUSTRAC", "outerClass": "!col-span-1" },
+{ "$formkit": "checkbox", "name": "regulated_by_asic",    "id": "regulated_by_asic",    "label": "ASIC",    "outerClass": "!col-span-1" }
+```
+```json
+{ "$formkit": "step", "if": "$get(regulated_by_austrac).value === true", "key": "austrac_step", "name": "austrac_details", "label": "AUSTRAC", "stepInnerClass": "grid grid-cols-2 gap-4", "children": [ ... ] }
+```
+
+The gate uses `=== true` (boolean), never `=== 'true'`/`=== 'yes'`/`=== 'austrac'`. Reserve the "fold Other into a checkbox group's options array" guidance below for the case where the options do **not** each need to gate a distinct section — if they do, one boolean field per option is the only thing that works.
+
 **Multi-select with an "Other" option** — do **not** add a separate sibling `checkbox`/`radio` ("Other method used") above the "specify" text field. That sibling renders as a full grid row with its own label, leaving a visible vertical gap below the main checkbox group, and the checkbox-group-can't-gate-conditionals problem means you can't use the group itself anyway. Two cleaner options:
 
 1. **Fold "Other" into the same options array** of the parent checkbox group (preferred when the "specify" field is short or can be always-visible). The "Other" option is just another value alongside the rest.
@@ -615,6 +630,7 @@ Each row below is a recurring schema authoring mistake. Apply the corresponding 
 | Arithmetic returns NaN (undefined) | Scoring selects with no default value — `$get(id).value` returns `undefined`, `undefined * 1 = NaN` | Set `value: "0"` on the select so the value is never undefined |
 | Expression renders as literal text | `children` string starts with `(` instead of `$:` — FormKit treats it as plain text | Ensure `children` expressions always start with `$:`. Never use `\|\| 0` wrappers that add leading parentheses |
 | Checkbox group conditional never triggers | Checkbox group used as conditional trigger — `$get(id).value === 'value'` compares array to string, always false | Use `radio` for Yes/No toggles. For multi-select with "Other", fold "Other" into the options array or render the "specify" text field unconditionally |
+| "Select all that apply" checklist can't gate its sections (or reads as a stack of Yes/No questions) | Author used one checkbox *group* (array — can't gate) or fell back to N separate Yes/No `radio` fields (clunky UX) when each option needs to reveal its own follow-up section | Render one **single-checkbox** field per option (bare boolean, own `name`/`id`, `!col-span-1` under a shared `h3`) — looks like the intended multi-select checklist, each box gates its section with `=== true`, and each is independently filterable |
 | Visible gap below checkbox group | Separate `checkbox`/`radio` sibling ("Other method used") placed above an "Other — specify" text field to gate it — the sibling consumes a full grid row with its own label, leaving an awkward gap below the main checkbox group, and it doesn't actually work as a gate when the group is a checkbox (array vs string) | Fold "Other" into the parent checkbox group's `options` array, or drop the gate entirely and show the "specify" text field unconditionally |
 | Entire topic only relevant under one answer leaves a stub step | Author wrapped every field inside a step in conditional `$el: "div"` blocks — the step still appears in the progress bar with no visible content when the condition is false | Put `if` directly on the `$formkit: "step"` node (with a `key`) — FormKit Pro multi-step hides the step and removes it from the progress bar |
 | Single checkbox conditional never triggers | `$get(id).value === 'true'` (string) on a single checkbox — single checkboxes return boolean `true`/`false`, not a string | Use `=== true` (boolean) in conditionals on single checkbox fields |
