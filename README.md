@@ -106,7 +106,7 @@ Restart Claude Code. The skill activates automatically when the conversation mat
 
 ### API or SDK
 
-For programmatic use (Anthropic, OpenAI, Google, or any other provider's API), load `SKILL.md` into your system prompt and attach the reference files to the conversation context. The Agent Skills format is documented [here](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview) — the same pattern applies regardless of provider.
+For programmatic use (Anthropic, OpenAI, Google, or any other provider's API), load `SKILL.md` into your system prompt and attach the reference files to the conversation context. The Agent Skills format is documented in the [Agent Skills overview](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview) — the same pattern applies regardless of provider.
 
 ### Other tools
 
