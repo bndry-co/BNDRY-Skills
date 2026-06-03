@@ -6,7 +6,7 @@ argument-hint: "[file-path] [--audit]"
 
 # BNDRY FormKit Schema
 
-A bad schema can prevent a BNDRY form from saving or rendering correctly. Follow every rule in this guide — each one addresses a specific failure mode in how the platform consumes schemas.
+A bad schema will brick the BNDRY app with no graceful failure. Follow every rule in this guide — each one exists because the failure mode was hit in production.
 
 Before building anything, review the official FormKit docs: [Schema](https://formkit.com/essentials/schema), [Inputs](https://formkit.com/inputs), [Multi-Step](https://formkit.com/plugins/multi-step), and [Expressions](https://formkit.com/essentials/schema#expressions). BNDRY uses standard FormKit with no custom expression engine.
 
@@ -24,9 +24,9 @@ Before building anything, review the official FormKit docs: [Schema](https://for
 
 **Events are an antipattern** — FormKit already collects and reconciles state. Prefer reacting to value, validation state, form state, and node structure instead of wiring event chains. Reach for imperative handlers only when there is no clear node- or state-driven alternative.
 
-**Runtime** — BNDRY renders FormKit schemas in a Vue frontend. All FormKit docs should use the Vue flavour.
+**Runtime** — BNDRY is Vue-only (two apps: `web/app` + `web/portal`). No React. All FormKit docs should use the Vue flavour.
 
-**Schema pipeline** — schemas are JSON, stored by BNDRY, and rendered dynamically. The JSON itself is the source of truth for form layout and field configuration; render-time behaviour is described in [references/bndry-theme-reference.md](references/bndry-theme-reference.md).
+**Schema pipeline** — BNDRY is full-stack schema-driven. FormKit schemas can be defined in protobuf (`proto/bndry/api/datacollection/forms/v1alpha/formkit_schema.proto`), stored in the database, generated as TypeScript (`web/shared/src/service/proto/gen/`), and rendered dynamically by the Vue frontend. The JSON schemas in this repo are the source of truth for form layout and field configuration.
 
 ---
 
@@ -80,6 +80,7 @@ Before writing any JSON:
 - If editing, read the existing schema and identify what needs to change
 - Check the entity first — don't add fields for data BNDRY already holds on the entity
 - If scoring/rating is involved, confirm scale, number of factors, and band thresholds upfront — changing these later means rewriting every computed expression
+- If the schema originates from a protobuf definition, check the proto source and generated TypeScript to understand the full data pipeline before making changes
 
 ---
 
@@ -91,13 +92,18 @@ Before writing any JSON:
 
 ```
 Schema Progress:
-- [ ] Schema root is a JSON array — top-level value starts with `[` and ends with `]`. An object root is rejected by the platform and the form cannot be saved.
-- [ ] Reviewed [references/bndry-theme-reference.md](references/bndry-theme-reference.md) — captures what the BNDRY theme handles automatically and what schemas must specify explicitly
+- [ ] Schema root is a JSON array — top-level value starts with `[` and ends with `]` (the proto's `nodes` field is a `google.protobuf.ListValue`; an object root fails client-side with a protobuf decode error before the request is sent)
+- [ ] Read README.md in the FormKit-Schemas repo — it documents design decisions and layout conventions not captured in the skeleton (e.g. when to use !col-span-1 pairs)
+- [ ] Checked all files under web/shared/src/pkgs/formkit/ — theme classes, registered plugins, custom validation rules
 - [ ] outerClass on $formkit fields contains only !col-span-1 or !col-span-2 — do NOT add !max-w-none to regular fields (the global theme outer already sets max-w-none; only the multi-step root and repeater nodes need !max-w-none because the theme constrains their width)
 - [ ] $el heading classes use the same colour tokens as the theme's label section — no arbitrary colours
 - [ ] Multi-step root has outerClass/wrapperClass set to "!max-w-none" (no !w-full)
 - [ ] Multi-step root has tab-style: "progress" (styled by BNDRY theme — dots, connectors, dark mode)
-- [ ] Multi-step root has no `allow-incomplete` property — remove if present
+- [ ] Multi-step root has no allow-incomplete property (temporary testing flag only; remove before deploy)
+- [ ] If the progress bar is hidden (tabsClass: "!hidden"), `!hidden` is added to `utilityClassInclusions` in `formkit.theme.overrides.ts` AND every step has its own $el h2 heading as first child (otherwise the tabsClass is a silent no-op and the user loses their location cue)
+- [ ] No non-standard utility class used in a schema unless it's already compiled — Tailwind v4 never scans schema JSON, so anything beyond the standard layout/heading classes must be added to `utilityClassInclusions` in `formkit.theme.overrides.ts` or it does nothing
+- [ ] Required fields with long question/sentence labels override the message via `validationMessages: { "required": "This question is required" }` (short noun labels keep the default)
+- [ ] No `required` used where it should be conditional — `required` can't read another field; gate the field behind an `if` (and mark it required there) or make it optional. Never `required` an identifier only some entity types have (e.g. ACN on a form that allows sole traders)
 - [ ] Every step has stepInnerClass: "grid grid-cols-2 gap-4"
 - [ ] Every $formkit field (direct step child) has outerClass: "!col-span-2" or "!col-span-1" (no !max-w-none — see above)
 - [ ] Every $el direct step child has !col-span-2 in attrs.class
@@ -141,7 +147,7 @@ Schema Progress:
 - [ ] Date+time fields use `$formkit: "datepicker"` with `sequence: ["day", "time"]`, `pickerOnly: true`, `overlay: true`, and `format: { "date": "long", "time": "short" }` — `"2-digit"` is not a valid time format and causes the field to be completely non-interactive
 - [ ] Currency fields use `$formkit: "currency"` with `currency: "AUD"`, `displayLocale: "en-AU"`, `decimals: 2`, `minDecimals: 2`, `min: 0`
 - [ ] File fields default to `multiple: true` (omit only when the field is explicitly single-file) and have an `accept` attribute; no manual fileExt/fileSize/fileUpload in validation string
-- [ ] All extensions in `accept` are within BNDRY's supported list: `doc, docx, ppt, pptx, xls, xlsx, csv, txt, odt, ods, odp, pdf, jpg, jpeg, png` — video, .gif, .msg, .eml and other formats are not supported and will be rejected
+- [ ] All extensions in `accept` are within the plugin's supported list: `doc, docx, ppt, pptx, xls, xlsx, csv, txt, odt, ods, odp, pdf, jpg, jpeg, png` — video, .gif, .msg, .eml and other formats are not supported and will be rejected
 - [ ] `$formkit: "signature"` fields have `outerClass: "!col-span-2"` and are not inside a repeater
 - [ ] Single checkbox conditionals use `=== true` (boolean), not `=== 'true'` or `=== 'yes'`
 - [ ] `id` equals `name` on every field that has both
@@ -150,9 +156,6 @@ Schema Progress:
 - [ ] Multi-step root has a stable `name` property (prevents hydration key mismatch on reload)
 - [ ] No field `name` matches any step `name` in the same form (name collision)
 - [ ] No duplicate field `name` values within the same step
-- [ ] Required fields with long question/sentence labels override the message via `validationMessages: { "required": "This question is required" }` (short noun labels keep the default)
-- [ ] No `required` used where it should be conditional — gate the field behind an `if` (and mark it required there) or make it optional; never require an identifier only some entity types have (e.g. a company number on a form that allows sole traders)
-- [ ] Long reference content uses a real `<ul>`/`<details>` block, not a comma run-on paragraph
 ```
 
 ---
@@ -169,7 +172,7 @@ Run every check below against the schema. For each violation found, report:
 **Audit checklist** (ordered by severity):
 
 1. **App crash checks:**
-   - Schema root is **not** a JSON array (top-level value is an object `{ ... }` instead of `[ ... ]`)? → Wrap the existing root in `[ ... ]`. The schema root must always be an array; an object root is rejected and the form cannot be saved.
+   - Schema root is **not** a JSON array (top-level value is an object `{ ... }` instead of `[ ... ]`)? → Wrap the existing root in `[ ... ]`. The proto's `FormKitSchema.nodes` field is `google.protobuf.ListValue` — an object root throws `cannot decode message google.protobuf.ListValue from JSON object` in protobuf-es and the form cannot be saved (BNDRY-5937)
    - Any `$formkit` input with a computed `value` expression? → Use `$el` div instead
    - Any method chaining after `.value` (`.includes()`, `.length`, `.trim()`)? → Restructure logic
    - Any `children` expression string that doesn't start with `$:`? → Add `$:` prefix
@@ -192,8 +195,6 @@ Run every check below against the schema. For each violation found, report:
    - Any field where `id` and `name` differ? → Make them match — diverging values create a confusing disconnect between expression scoping and submitted data keys
    - Any `$get()` used inside a repeater's children? → Remove; `$get()` resolves at form/step scope, not the current repeater row, so the result is always the form-level value — intra-row conditionals must be handled at the app level
    - Any repeater node with a `validation` property? → Remove it — FormKit does not apply validation to the repeater wrapper; use `min: 1` to require at least one entry
-   - Any field with a `required` rule whose label is a long question/sentence and no `validationMessages.required` override? → Add `validationMessages: { "required": "This question is required" }` so the error doesn't echo the whole question (leave short noun labels on the default)
-   - Any `required` field that only applies under certain answers, or an identifier only some entity types have (e.g. a company number with sole-trader/partnership options)? → `required` can't be conditional; gate a required copy behind an `if`, or make the field optional
    - Any single checkbox conditional using `=== 'true'` or `=== 'yes'` instead of `=== true`? → Fix to boolean comparison — single checkboxes return `true`/`false`, not strings
    - Any step whose entire content is wrapped in conditional `$el: "div"` blocks driven by the same expression? → Move the `if` (and a `key`) onto the `$formkit: "step"` node itself so the step is hidden from the progress bar when not applicable, instead of rendering an empty step
    - Any separate `checkbox`/`radio` sibling field used to gate an "Other — specify" text input below a checkbox group? → Fold "Other" into the parent checkbox group's `options` array, or render the "specify" text field unconditionally — the sibling field creates a visible gap and (for checkbox groups) can't gate the conditional anyway
@@ -205,17 +206,21 @@ Run every check below against the schema. For each violation found, report:
    - Any monetary amount field using `$formkit: "text"` or `$formkit: "number"`? → Replace with `$formkit: "currency"` with `currency: "AUD"`, `displayLocale: "en-AU"`, `decimals: 2`, `minDecimals: 2`, `min: 0`
    - Any `$formkit: "currency"` field missing `currency: "AUD"` or `displayLocale: "en-AU"`? → Add BNDRY defaults
    - Any `$formkit: "currency"` field missing `minDecimals: 2`? → Add it — without it the field displays an integer (no cents) even though `decimals: 2` is set
-   - Any file field with `fileExt`, `fileSize`, or `fileUpload` in the `validation` string? → Remove — these are applied automatically; manual addition causes double-validation errors
+   - Any file field with `fileExt`, `fileSize`, or `fileUpload` in the `validation` string? → Remove — `bndryFormkitFilePlugin` auto-applies these; manual addition causes double-validation errors
    - Any file field missing `multiple: true`? → Add it unless the field is explicitly single-file (e.g. single ID document, single profile photo) — `multiple: true` is the default for BNDRY file fields
-   - Any file field missing an `accept` attribute where a specific type restriction is appropriate? → Add extension filter (BNDRY's default accepted list is broad; `accept` narrows the picker dialog to guide users)
-   - Any `accept` value containing extensions outside BNDRY's supported list (video formats, `.gif`, `.msg`, `.eml`, etc.)? → Remove them — extension validation will reject these files regardless of what appears in the picker
+   - Any file field missing an `accept` attribute where a specific type restriction is appropriate? → Add extension filter (the plugin's default list is broad; `accept` narrows the picker dialog to guide users)
+   - Any `accept` value containing extensions outside the plugin's supported list (video formats, `.gif`, `.msg`, `.eml`, etc.)? → Remove them — the plugin's `fileExt` validation will reject these files regardless of what appears in the picker
    - Any `$formkit: "select"` used for a non-scoring picklist? → Replace with `$formkit: "dropdown"` and set `deselect: !required`, `selectionRemovable: !required`, `popover: true`. `select` is reserved for scoring fields (where arithmetic on string option values matters) and other narrow special cases
    - Any `$formkit: "signature"` inside a `repeater`? → Move outside — canvas inputs do not scale correctly within repeater rows
    - Any `$formkit: "signature"` missing `outerClass: "!col-span-2"`? → Add it
 
 4. **Layout / configuration checks:**
    - Root multi-step node missing `tab-style: "progress"`? → Add it (the BNDRY theme styles progress dots, connectors, visited state, and dark mode under `data-[tab-style=progress]`)
-   - Any root multi-step node with `allow-incomplete` property? → Remove it; this attribute must not appear in deployed schemas
+   - Any root multi-step node with `allow-incomplete` property? → Remove it (temporary testing flag; must not be deployed)
+   - Any `tabsClass: "!hidden"` (or other class) used to hide the progress bar without the `!hidden` utility being added to `utilityClassInclusions` in `formkit.theme.overrides.ts`? → Flag as a silent no-op; either add it there or remove the dead prop. And confirm every step has its own `$el: "h2"` first child once the bar is hidden
+   - Any non-standard utility class present only in the schema (not in the scanned `.vue`/`.ts`/theme source)? → It won't be compiled by Tailwind v4 and is a silent no-op; replace with a known-compiled class or add it to `utilityClassInclusions` in `formkit.theme.overrides.ts`
+   - Any field with a `required` rule whose label is a long question/sentence and no `validationMessages.required` override? → Add `validationMessages: { "required": "This question is required" }` so the error doesn't echo the whole question (leave short noun labels on the default)
+   - Any `required` field that only applies under certain answers, or an identifier only some `entity_type`s have (e.g. ACN with sole-trader/partnership options)? → `required` can't be conditional; gate a required copy behind an `if`, or make the field optional
    - Root multi-step missing `outerClass: "!max-w-none"` or `wrapperClass: "!max-w-none"`? → Add them (theme constrains multi-step width without these)
    - Any root multi-step with `!w-full` in `outerClass` or `wrapperClass`? → Strip to `"!max-w-none"`
    - Any step missing `stepInnerClass: "grid grid-cols-2 gap-4"`? → Add it
@@ -230,15 +235,16 @@ Run every check below against the schema. For each violation found, report:
    - Any `$el: "h2"` or `$el: "h3"` with `!inline-flex` in `attrs.class`? → Change to `!block`
    - Any phone field using `$formkit: "text"` instead of `"tel"`? → Change to `tel`
 
-5. **Theme compatibility checks** (cross-reference [references/bndry-theme-reference.md](references/bndry-theme-reference.md)):
+5. **Theme compatibility checks** (cross-reference all files under `web/shared/src/pkgs/formkit/`):
    - Any `outerClass` on a `$formkit` field containing `!max-w-none`? → Remove it — the global theme outer already sets `max-w-none` for all `$formkit` inputs; `!max-w-none` is only needed on the multi-step root and repeater nodes where the theme constrains their width
-   - Any `outerClass` on a `$formkit` field containing classes other than `!col-span-1`, `!col-span-2`? → Other classes risk duplicating or conflicting with theme-applied classes; remove unless there's a documented reason
-   - Any `$el` heading using colour classes that don't match the theme's label colour tokens? → Replace with the label colour tokens (see [references/bndry-theme-reference.md](references/bndry-theme-reference.md))
+   - Any `outerClass` on a `$formkit` field containing classes other than `!col-span-1`, `!col-span-2`? → Other classes risk duplicating or conflicting with theme-applied classes; check the theme before adding them
+   - Any `$el` heading using colour classes that don't match the theme's label colour tokens? → Read the theme's `label` section and replace with the correct tokens
    - Any `$el` heading class containing the redundant leading `block` alongside `!block`? → Remove `block`, keep only `!block`
    - Any `$formkit` node with section-level class overrides (`labelClass`, `inputClass`, `wrapperClass`) that duplicate what the theme already applies? → Remove the redundant override
 
 6. **Styling/cosmetic checks:**
-   - Any inline `style` attributes? → Remove, rely on the centralised theme
+   - README.md in the FormKit-Schemas repo reviewed for design decisions and layout conventions not captured in the skeleton (e.g. when to use `!col-span-1` pairs)? → Read it before reporting cosmetic violations — the convention may already be documented
+   - Any inline `style` attributes? → Remove, rely on centralised theme
    - Any `$el` heading (h2/h3) without the standard Tailwind heading classes? → Add classes
    - Any `$el` intro text div without `class: "mb-4 !col-span-2"`? → Add spacing and col-span
    - Any `$el` heading immediately after another heading without `mt-2` on the second heading? → Add spacing
@@ -264,7 +270,7 @@ Run every check below against the schema. For each violation found, report:
 
 Every BNDRY form must use the multi-step skeleton for full-width rendering. Use [multi-step-skeleton.json](templates/multi-step-skeleton.json) as a starting point.
 
-**The schema root must be a JSON array** — the top-level value must start with `[` and end with `]`, even when the form has a single root multi-step node. A schema whose root is a JSON object (e.g. `{ "$formkit": "multi-step", ... }` instead of `[ { "$formkit": "multi-step", ... } ]`) is rejected by the platform and the form cannot be saved.
+**The schema root must be a JSON array** — the top-level value must start with `[` and end with `]`, even when the form has a single root multi-step node. The `FormKitSchema.nodes` field in the BNDRY proto (`proto/bndry/api/datacollection/forms/v1alpha/formkit_schema.proto`) is typed as `google.protobuf.ListValue`, which only decodes from a JSON array. If you submit a schema whose root is a JSON **object** (e.g. `{ "$formkit": "multi-step", ... }` instead of `[ { "$formkit": "multi-step", ... } ]`), the form save fails client-side in protobuf-es with `cannot decode message google.protobuf.ListValue from JSON object`, the request never reaches the server, and the user sees only a generic "Error creating form" toast (BNDRY-5937).
 
 The centralised theme constrains multi-step form width by default. To get full-width rendering, add `outerClass` and `wrapperClass` directly on the multi-step node — do **not** use `sections-schema` attrs (they don't override the theme):
 
@@ -278,7 +284,31 @@ The centralised theme constrains multi-step form width by default. To get full-w
 
 Each step needs a `name` and a short `label` (appears in the tab bar).
 
-**Draft autosave** — BNDRY auto-saves form state to localStorage. On reload, users are prompted to continue their draft or discard it. **Renaming fields or steps** in a schema after a form has been deployed causes existing user drafts to pre-populate stale values into the wrong fields. Treat `name` changes on deployed schemas as a breaking change — coordinate with users or accept that in-progress drafts will be stale.
+**Hiding the progress/tab bar.** The whole bar lives in the `multi-step__tabs` section; the prev/next buttons live in separate sections, so hiding the bar leaves navigation intact. On long forms the step labels squish together and can't be made legible no matter the styling — when that happens (or when prev/next is navigation enough), hide it with `tabsClass: "!hidden"` on the multi-step root. The `!important` is required because the multistep addon ships a high-specificity `display:flex` on `.formkit-tabs` that a plain `hidden` can't beat.
+
+```json
+"tab-style": "progress",
+"outerClass": "!max-w-none",
+"wrapperClass": "!max-w-none",
+"tabsClass": "!hidden"
+```
+
+**This is NOT a pure schema change — `tabsClass: "!hidden"` is a no-op on its own.** The `!hidden` utility has to exist in the compiled CSS, and by default it does not (see [Runtime utility classes must already be compiled](#runtime-utility-classes-must-already-be-compiled) below — BNDRY is Tailwind v4 and never scans schema JSON). Add `'!hidden'` to the `utilityClassInclusions` array in `web/shared/src/pkgs/formkit/formkit.theme.overrides.ts`, then rebuild:
+
+```ts
+export const utilityClassInclusions: Array<string> = [
+  '!max-w-none',
+  'max-w-none!',
+  '!hidden',
+  // ...
+]
+```
+
+Keep `tab-style: "progress"` set regardless — deleting the `tabsClass` line reverts cleanly.
+
+**When the bar is hidden, every step MUST carry its own `$el: "h2"` heading as its first child** — with the tab bar gone, that heading is the only "where am I" cue the user has. (Steps should already have these per the styling rules; it becomes mandatory once the bar is hidden.) Do not reach for `hideProgressLabels` for this — it only drops the tab text and leaves the dots/connectors, which is rarely what you want.
+
+**Draft autosave** — all portal forms run `createFormKitLocalStorage`, which auto-saves form state to localStorage every second (30-minute expiry). On reload, users are prompted to continue their draft or discard it. The draft key is derived from the workspace form record's name — not the schema's `name` property. However, **renaming fields or steps** in a schema after a form has been deployed causes existing user drafts to pre-populate stale values into the wrong fields. Treat `name` changes on deployed schemas as a breaking change — coordinate with users or accept that in-progress drafts will be stale.
 
 **Every step must have `stepInnerClass: "grid grid-cols-2 gap-4"`** — this enables 2-column grid layout for the step's direct children. Without it, `!col-span-1` and `!col-span-2` on child fields have no effect.
 
@@ -331,7 +361,7 @@ The "at most one h3 heading per step" rule still applies as a default — break 
 - **Field `name` values must never match any step `name` in the same multi-step form.** FormKit's scope resolution can confuse a field node with a step node of the same name, producing wrong `$get()` results and garbled submitted data. If a step is named `incident_details`, no field anywhere in the form should also be named `incident_details` — rename the field (e.g. `incident_description`).
 - Field `name` values must be unique within their step.
 - Select option values are **always strings** — use `* 1` to cast when doing arithmetic.
-- **`select` vs `dropdown`**: Default to `$formkit: "dropdown"` (FormKit Pro) for all picklists — short fixed lists, long lists, and searchable lists alike. Standard BNDRY attrs: `deselect: !required`, `selectionRemovable: !required`, `popover: true`. Use `$formkit: "select"` only for narrow special cases — primarily **scoring fields**, where option values feed arithmetic expressions (`* 1` casts, `$get(id).value` summed across fields) and the native `select` is a better fit than the Pro dropdown.
+- **`select` vs `dropdown`**: Default to `$formkit: "dropdown"` (FormKit Pro) for all picklists — short fixed lists, long lists, and searchable lists alike. Standard BNDRY attrs: `deselect: !required`, `selectionRemovable: !required`, `popover: true` (the custom-fields converter applies these automatically; hand-written schemas should set them explicitly). Use `$formkit: "select"` only for narrow special cases — primarily **scoring fields**, where option values feed arithmetic expressions (`* 1` casts, `$get(id).value` summed across fields) and the native `select` is a better fit than the Pro dropdown.
 - **Keep validation co-located** with the inputs that own it — don't centralise validation rules in a separate structure.
 - **Prefer `form`, `group`, and `list` composition** over manual object or array assembly in submit handlers.
 
@@ -339,28 +369,74 @@ The "at most one h3 heading per step" rule still applies as a default — break 
 
 Standard: `text`, `textarea`, `select`, `radio`, `checkbox`, `date`, `datetime-local`, `file`, `number`, `email`, `tel`, `url`, `hidden`
 
-FormKit Pro: `datepicker`, `dropdown`, `repeater`, `currency`, `mask`, `autocomplete`, `slider`, `rating`, `taglist`, `toggle`, `togglebuttons`, `colorpicker`, `transferList`, `unit`
+FormKit Pro (registered via `createProPlugin` in `formkit.config.ts`): `datepicker`, `dropdown`, `repeater`, `currency`, `mask`, `autocomplete`, `slider`, `rating`, `taglist`, `toggle`, `togglebuttons`, `colorpicker`, `transferList`, `unit`
 
-BNDRY custom: `signature`
+BNDRY Custom (registered via `createInput()` in `formkit.config.ts`): `signature`
 
-**FormKit Pro inputs** are available in BNDRY schemas with no additional setup needed. When recommending or implementing a Pro input, mention that it is a Pro input in any user-facing summary.
+**FormKit Pro inputs** require `@formkit/pro`. In BNDRY, `createProPlugin()` is already registered in `formkit.config.ts` with all Pro inputs available — no additional setup is needed. However, when recommending or implementing a Pro input, mention that it is a Pro input in any user-facing summary.
 
-### Theme compatibility
+### Theme Compatibility
 
-The full reference for what the BNDRY theme handles automatically and what schemas must specify is at [references/bndry-theme-reference.md](references/bndry-theme-reference.md). Read it before building or auditing.
+At build, edit, and audit time, schemas must be evaluated against **all files** under `web/shared/src/pkgs/formkit/`:
 
-**Quick reference** — safe `outerClass` values for `$formkit` fields:
+| File / directory | What to check |
+|---|---|
+| `formkit.theme.ts` | Now a thin wrapper (~36 lines) — delegates to `formkit.theme.generated.ts` with override merging. Read this to understand the overall structure, but the actual class definitions are in the two files below |
+| `formkit.theme.generated.ts` | CLI-generated base theme (~3400 lines) via `@formkit/themes`. The baseline for all `$formkit` input styling |
+| `formkit.theme.overrides.ts` | BNDRY-specific overrides and design tokens (~148 lines) — **start here for schema audit work**. Contains safe `outerClass` values, colour token correctness (peach/slime brand colours, red→peach error states), multi-step styling, and button hierarchy |
+| `formkit.config.ts` | Which plugins are registered (determines which `$formkit` types and props are available) |
+| `plugins/` | Custom plugin behaviour that may affect field values, validation, or rendering |
+| `validation/` | Custom validation rules available for use in `validation` strings |
+
+**Key facts from `formkit.config.ts`:**
+- `createMultiStepPlugin()` is registered — `$formkit: "multi-step"` and `"step"` are available
+- `createProPlugin()` is registered with `inputs` — all FormKit Pro inputs are available (datepicker, dropdown, repeater, taglist, etc.)
+- `createAutoHeightTextareaPlugin()` is registered — textareas auto-expand; do not set fixed heights
+- `signature` custom input is registered via `createInput()` — see Signature Input Rules below
+- Locale is `en-AU`
+
+**Key facts from the theme** (read the actual theme files to verify current values — do not rely on this list alone):
+
+- **Global `outer` section** — the theme applies `max-w-none` to all `$formkit` inputs by default. `!col-span-1`/`!col-span-2` in `outerClass` are safe because the theme sets no `col-span` or grid placement classes on fields.
+- **`multi-step__outer`** — the theme constrains multi-step width (narrower than `max-w-none`). `outerClass: "!max-w-none"` on the multi-step root overrides this to get full-width rendering.
+- **`multi-step__wrapper`** — `tab-style: "progress"` activates a set of `group-data-[tab-style=progress]/wrapper:` selectors across `multi-step__tabs`, `multi-step__tab`, and `multi-step__badge` — providing step dots, connector lines, visited/active colour changes, and full dark mode support. These styles do not activate without the `tab-style` attribute.
+- **`repeater__outer`** — the theme constrains repeater width (narrower than `max-w-none`). `outerClass: "!max-w-none"` on repeaters overrides this.
+- **`repeater__content`** — the theme applies a flex column layout by default. `contentClass: "grid grid-cols-2 gap-4"` overrides the display to grid. This is the correct and safe pattern.
+- **`stepInnerClass`** — the theme defines nothing for this prop. It must always be set explicitly on every step: `"stepInnerClass": "grid grid-cols-2 gap-4"`.
+- **Grid placement classes** — the theme does not set `col-span`, `gap-`, or `grid-cols-` classes on fields or steps (only inside the datepicker's internal calendar UI, which never affects step or field layout). Grid placement classes in `outerClass`/`contentClass`/`stepInnerClass` have zero conflict risk.
+- **Label colour tokens** — read the theme's `label` section to confirm the current colour tokens. `$el` heading classes must use the same tokens for visual consistency.
+- **Button styling** — the theme controls all button appearance (submit, multi-step prev/next, repeater add). Schemas must not add button-related class overrides. Read the theme to understand the current button hierarchy.
+
+**Safe `outerClass` values for `$formkit` fields:**
 
 ```
 "outerClass": "!col-span-2"   ← full-width
 "outerClass": "!col-span-1"   ← half-width pair
 ```
 
-Do not add `!max-w-none` to regular field `outerClass` — the BNDRY theme applies `max-w-none` to every `$formkit` input by default. `!max-w-none` is only needed on the multi-step root and repeater nodes, where the theme constrains their width.
+Do not add `!max-w-none` to regular field `outerClass` — the global theme outer already applies `max-w-none` to every `$formkit` input, so adding it is redundant noise. `!max-w-none` is only needed on the multi-step root and repeater nodes, where the theme constrains their width. Everywhere else it is unnecessary.
 
-Do not add spacing, colour, display, or border classes to `outerClass` — the theme handles those for `$formkit` nodes.
+Do not add spacing, colour, display, or border classes to `outerClass` — the theme handles all of those for `$formkit` nodes.
 
-Locale is `en-AU`; textareas auto-expand (do not set fixed heights); `multi-step` and `step` inputs are available; FormKit Pro inputs are pre-registered.
+#### Runtime utility classes must already be compiled
+
+BNDRY is on **Tailwind v4**, which generates a utility's CSS only when that class string appears in *scanned source*. The scan globs (`@source` in `app|portal/src/assets/styles/main.css`) cover the `.vue`/`.ts` source tree plus the three `formkit.theme*.ts` files — **they never scan the form schemas**, which live in the database (and in the FormKit-Schemas repo), not in the app source.
+
+Consequence: a utility class that appears **only** in a schema's JSON has no CSS rule generated for it, so it silently does nothing at runtime. This is why the common layout classes are safe (`!col-span-1`, `!col-span-2`, `!max-w-none`, `!block`, `!inline-flex`, the heading/​colour tokens) — they all also occur in the theme files or app components, so they're compiled. But reach for any *other* utility in a schema (e.g. `!hidden`, an arbitrary variant like `[&_.formkit-tabs]:!hidden`, a one-off colour) and it will likely be absent from the build and have zero effect — with no error.
+
+Before using a non-standard utility in a schema, confirm it's already emitted (grep the scanned source / theme for the literal class). If it isn't, either pick one that is, or add it to the `utilityClassInclusions` array in `web/shared/src/pkgs/formkit/formkit.theme.overrides.ts` — this file IS scanned by Tailwind, so any string added there will be compiled. This keeps all FormKit-relevant utility inclusions in one place:
+
+```ts
+export const utilityClassInclusions: Array<string> = [
+  '!max-w-none',
+  'max-w-none!',
+  'text-green-600',   // example: dynamic colour in schema expression
+  'dark:text-green-400',
+  // ...
+]
+```
+
+Do **not** add `@source inline(...)` to the app/portal CSS files — the `utilityClassInclusions` pattern is the BNDRY-canonical approach. Do **not** debug this by staring at the schema: the schema can be perfect and the class still be a no-op because the CSS was never generated.
 
 ### Australian Defaults
 
@@ -409,15 +485,15 @@ BNDRY is an Australian platform. All schemas must use Australian conventions unl
 
 ### File Input Rules
 
-All `$formkit: "file"` inputs are automatically enhanced by BNDRY's file handling. Understanding what is applied automatically prevents double-handling and misuse.
+All `$formkit: "file"` inputs are automatically enhanced by `bndryFormkitFilePlugin` (registered globally in `formkit.config.ts`). Understanding what the plugin does prevents double-handling and misuse.
 
-**What is applied automatically:**
-- File extension validation — rejects files with unsupported extensions or double extensions (e.g. `file.backup.pdf`).
-- File size validation — rejects files over the configured limit.
-- A file viewer is rendered below the input showing uploaded files with preview/download.
-- Already-uploaded files are not re-validated on form re-render.
+**What the plugin does automatically:**
+- Adds `fileExt` validation — rejects files with unsupported extensions or double extensions (e.g. `file.backup.pdf`)
+- Adds `fileSize` validation — rejects files over the configured limit (default: 10,240 KB)
+- Renders a file viewer below the input showing uploaded files with preview/download
+- Skips re-validation on already-uploaded files (those with a `.resource` property from a prior save)
 
-**Supported extensions** — only these types are permitted. Any extension outside this list will be rejected on validation, regardless of what `accept` shows in the picker:
+**Supported extensions** — the plugin's `fileExt` validation only permits these types. Any extension outside this list will be rejected on validation, regardless of what `accept` shows in the picker:
 
 ```
 doc, docx, ppt, pptx, xls, xlsx, csv, txt, odt, ods, odp, pdf, jpg, jpeg, png
@@ -429,17 +505,17 @@ Video formats (`.mp4`, `.mov`, `.avi`, `.mkv`), email formats (`.msg`, `.eml`), 
 
 **Key props to set explicitly:**
 
-- **`accept`** — comma-separated extension list (e.g. `".pdf,.png,.jpg,.jpeg"`). Controls the **browser's file picker dialog only** — the platform's extension validation enforces the actual restriction. Always specify `accept` to guide the user; it must be a subset of the supported extensions listed above — any extension not in that list will appear in the picker but be rejected on validation.
+- **`accept`** — comma-separated extension list (e.g. `".pdf,.png,.jpg,.jpeg"`). Controls the **browser's file picker dialog only** — the plugin's `fileExt` validation enforces the actual restriction. Always specify `accept` to guide the user; it must be a subset of the plugin's supported extensions (see below) — any extension not in that list will appear in the picker but be rejected on validation.
 - **`multiple: true`** — allows multiple files in one field. **Default to `multiple: true` for all file fields** unless the field is explicitly single-file (e.g. a single ID document, single profile photo). Most real-world document uploads benefit from accepting multiples, so the burden is on justifying a single-file field, not on enabling multiple.
 - **`validation: "required"`** — works as expected; field is invalid until at least one file is attached or already uploaded.
 
-**Do not** add `fileExt`, `fileSize`, or `fileUpload` to the `validation` string — these are applied automatically. Adding them manually causes double-validation errors.
+**Do not** add `fileExt`, `fileSize`, or `fileUpload` to the `validation` string — the plugin applies these automatically. Adding them manually causes double-validation errors.
 
 ---
 
 ### Signature Input Rules
 
-BNDRY includes a custom `$formkit: "signature"` input. It provides canvas-based signature capture, stores the drawn signature as a file reference, and supports a re-sign flow on previously captured signatures.
+BNDRY includes a custom `$formkit: "signature"` input registered in `formkit.config.ts` via `createInput()`. It provides canvas-based signature capture using the `signature_pad` library, uploads the drawn signature as a JPEG to the Files service, and displays existing uploaded signatures via blob URL with a re-sign flow.
 
 **Available props:**
 - `penColor` — ink colour (default: `'navy'`). Leave unset to use the BNDRY default.
@@ -449,7 +525,7 @@ BNDRY includes a custom `$formkit: "signature"` input. It provides canvas-based 
 **Rules:**
 - Use `outerClass: "!col-span-2"` like all other direct step children.
 - `validation: "required"` works and marks the field invalid until a signature is drawn and saved.
-- The stored value is a **file reference** — not a base64 data URL or string. Treat it like a file field value.
+- The stored value is a **file reference** to the Files service — not a base64 data URL or string. Treat it like a file field value.
 - Do **not** place a `signature` input inside a `repeater` — canvas-based inputs do not scale correctly within repeater rows.
 - Do **not** override `penColor` or `backgroundColor` with arbitrary colours — the BNDRY defaults are intentional and consistent with brand guidelines.
 
@@ -514,9 +590,9 @@ $get(score).value * 1 + $get(other).value * 1
 
 **Checkbox groups cannot be used as conditional triggers.** Checkbox groups return arrays, so `$get(id).value === 'value'` compares an array to a string — it will **never match**. And you cannot use `.includes()` (method chaining crashes the app). If you need a Yes/No toggle that gates other fields, use a `radio` input instead.
 
-**"Select all that apply" where each option gates its own section — use individual single checkboxes, not a checkbox group.** When the form is a multi-select *and* each selected option needs to reveal its own follow-up fields (e.g. "Who is your business regulated by?" → AUSTRAC / ASIC / AFCA, each unlocking that regulator's licence details), the instinct is one `checkbox` field with an `options` array. That cannot work: a checkbox group returns an array, so no `$get(group).value === 'austrac'` gate will ever fire, and `.includes()` crashes. Do **not** fall back to a stack of separate Yes/No `radio` fields — it reads as an interrogation, not a checklist, and is the wrong UX.
+**"Select all that apply" where each option gates its own section — use individual single checkboxes, not a checkbox group.** When the source form is a multi-select *and* each selected option needs to reveal its own follow-up fields (e.g. "Who is your business regulated by?" → AUSTRAC / ASIC / AFCA, each unlocking that regulator's licence details), the instinct is one `checkbox` field with an `options` array. That cannot work: a checkbox group returns an array, so no `$get(group).value === 'austrac'` gate will ever fire, and `.includes()` crashes. Do **not** fall back to a stack of separate Yes/No `radio` fields — it reads as an interrogation, not a checklist, and is the wrong UX.
 
-Instead, render **one single-checkbox field per option** (each a bare boolean `checkbox` with no `options` array, its own `name`/`id`, laid out with `!col-span-1` to form a compact 2-column checklist under a shared `$el: "h3"` heading). Visually this is identical to the multi-select the form intended — a "select all that apply" checklist — but because each box is its own boolean field, each one gates its section cleanly with `=== true`, and each becomes an independently filterable/reportable field (often *better* for downstream reporting than a single array field). This is the recommended pattern for a "multi-select that drives conditionals".
+Instead, render **one single-checkbox field per option** (each a bare boolean `checkbox` with no `options` array, its own `name`/`id`, laid out with `!col-span-1` to form a compact 2-column checklist under a shared `$el: "h3"` heading). Visually this is identical to the multi-select the form intended — a "select all that apply" checklist — but because each box is its own boolean field, each one gates its section cleanly with `=== true`, and each becomes an independently filterable/reportable field (often *better* for downstream reporting than a single array field). This is the canonical BNDRY pattern for "multi-select that drives conditionals".
 
 ```json
 { "$el": "h3", "children": "Who is your business regulated by?", "attrs": { "class": "<heading classes> !col-span-2" } },
@@ -544,12 +620,12 @@ Do **not** write `=== 'true'` or `=== 'yes'` — the condition will silently nev
 
 **`$get()` inside repeater children** — `$get()` resolves at the **form/step scope**, not the current repeater row. You cannot use `$get()` to reference a sibling field within the same repeater row. There is no safe way to implement intra-row conditionals in FormKit JSON schemas. If intra-row conditional logic is required, it must be handled at the app level.
 
-**`required` cannot be made conditional.** There is no `requiredIf`-style rule that reads another field — `validation` is static per field. So a field that should only be mandatory under some answers has two options:
+**`required` cannot be made conditional in the validation string.** There is no `requiredIf`-style rule that reads another field — `validation` is static per field. So a field that should only be mandatory under some answers has two schema-level options:
 
-1. **Put the field inside a conditional `$el: "div"` / step that only renders under that answer**, and mark it `required` there. When the wrapper is hidden the field isn't rendered, so `required` doesn't block submission (this is how gated steps work — `required` on a step's fields only applies when that step is shown).
+1. **Put the field inside a conditional `$el: "div"` / step that only renders under that answer**, and mark it `required` there. When the wrapper is hidden the field isn't rendered, so `required` doesn't block submission (this is exactly how the gated AUSTRAC/ASIC fields work — `required` on them only bites when their step is shown).
 2. **Make it plainly optional** (drop `required`, keep any format `matches`) when it's always visible but only sometimes applicable.
 
-Corollary — **don't make an identifier `required` that only some entity types possess.** Requiring a company number on a form whose entity-type options include Sole Trader / Partnership / Trust silently blocks those entities from submitting — they have no such number to enter. Either gate a `required` copy behind the company-type condition, or make the field optional. The same trap applies to any "everyone fills this" field that's really "only some do".
+Corollary — **don't make an identifier `required` that only some entity/answer types possess.** Requiring an ACN (companies only) on a form whose `entity_type` includes Sole Trader / Partnership / Trust silently blocks those entities from submitting — they have no ACN to enter. Either gate a `required` copy behind the company-type condition, or make the field optional. The same trap applies to any "everyone fills this" field that's really "only some do".
 
 ### Computed Display Fields
 
@@ -558,9 +634,26 @@ Corollary — **don't make an identifier `required` that only some entity types 
 - For banded ratings (Low / Medium / High), use nested `if/then/else` objects in the `children` property of an `$el` div.
 - The full sum expression must be **repeated in every `if` condition** — there is no way to store intermediate values in FormKit schema.
 
-### Styling conventions
+### Backend Error Mapping
 
-BNDRY has a **centralised FormKit theme** that applies Tailwind classes for every `$formkit` input based on its type and section. The theme handles all styling for `$formkit` nodes — schemas must not override it.
+When forms submit to the BNDRY backend and server-side validation returns errors, normalize the backend error payload into FormKit-compatible addresses:
+
+- **Form-level errors** (not tied to a specific field) → pass to `node.setErrors(formErrors)` or the framework `setErrors()` helper
+- **Field-level errors** → map backend field paths to FormKit dot-notation addresses (`email`, `group.name`, `group.list.2.name`) and pass as keyed input errors
+- For nested groups and lists, use dot-notation addresses over one-off manual field wiring in submit handlers
+
+This is especially relevant for BNDRY's full-stack schema pipeline where form definitions originate in protobuf and validation can occur on both client and server.
+
+### Vue State Best Practices
+
+In Vue components that render FormKit forms:
+
+- **Do not duplicate FormKit state in Vue refs, reactive objects, or watchers.** FormKit already manages form values, validation state, and submission state. If you need a field's value, use `node.value` or `$get(id).value` in schema expressions — don't mirror it into a separate Vue `ref` and try to keep both in sync.
+- **Prefer node APIs and derived FormKit state** over DOM queries or duplicate framework state. For cross-field behaviour, model the relationship in the FormKit tree (through `form`, `group`, `list`, validation rules, schema expressions, or node state) before introducing custom Vue event plumbing.
+
+### Styling Conventions
+
+BNDRY has a **centralised FormKit theme** (files under `web/shared/src/pkgs/formkit/`) that applies Tailwind classes for every `$formkit` input based on its type and section. This theme handles all styling for `$formkit` nodes — schemas must not override it.
 
 **Core rules:**
 
@@ -568,9 +661,9 @@ BNDRY has a **centralised FormKit theme** that applies Tailwind classes for ever
 - **No custom colours, backgrounds, or borders** on `$formkit` nodes. The theme handles these and must be the single source of truth.
 - **Dark/light mode agnosticism** — schemas must work in both themes. Never hardcode colours that assume light or dark mode. The centralised theme already handles dark mode via Tailwind's `dark:` variants.
 
-**`$el` elements** (divs, headings, paragraphs) are raw HTML — the FormKit theme engine does not reach them. Without explicit classes, `$el` nodes render as unstyled browser-default HTML.
+**`$el` elements** (divs, headings, paragraphs) are raw HTML — the centralised FormKit theme engine cannot reach them. This is a FormKit limitation, not a design choice. Without explicit classes, `$el` nodes render as unstyled browser-default HTML.
 
-**Section headings** (`$el: "h3"` or `$el: "h2"`) therefore need Tailwind classes applied via `attrs.class`. Both h2 and h3 use `!block`. All headings are direct step children inside a CSS grid, so they also need `!col-span-2`. The colour tokens must match the BNDRY label colour tokens — see [references/bndry-theme-reference.md](references/bndry-theme-reference.md) for the canonical pattern. Example:
+**Section headings** (`$el: "h3"` or `$el: "h2"`) currently need Tailwind classes via `attrs.class` as a workaround for this limitation. Both h2 and h3 use `!block`. All headings are direct step children inside a CSS grid, so they also need `!col-span-2`. The colour tokens must match the theme's `label` section — read it to confirm the current values. Example (verify colour tokens against the theme before using):
 
 ```json
 {
@@ -590,7 +683,7 @@ BNDRY has a **centralised FormKit theme** that applies Tailwind classes for ever
 
 Replace `<label-colour-tokens>` and `<label-dark-tokens>` with the actual text colour and dark mode classes from the theme's `label` section (e.g. if the theme label uses `text-midnight-700` and `dark:text-midnight-300`, use those).
 
-Use the inline class pattern above. Do not invent new colour values — read the actual tokens from the theme and apply them as written.
+This is a **temporary workaround**, not an override of the centralised theme. The long-term fix is reusable heading components at the app level that the theme can style. When those components exist, schemas should switch to them and drop the inline classes.
 
 - Do not wrap headings in a parent `$el: "div"` — use the `h3` directly as a child of the step.
 - If a schema needs visual treatment that the current theme doesn't support, flag it to the user rather than adding inline styles. New styles should be added to the centralised theme, not to individual schemas.
@@ -601,10 +694,10 @@ Use the inline class pattern above. Do not invent new colour values — read the
 - **`$el` heading immediately after another `$el` heading** (e.g. h3 after h2) — add `mt-2` to the second heading's class to prevent them running together.
 - **Computed display blocks** — wrap related score/rating elements in a parent `$el: "div"` with `attrs.class: "mt-4 mb-6 !col-span-2"` for visual separation. Use `text-2xl font-semibold` on the value display and `text-sm opacity-70` on helper text for hierarchy.
 
-**`$el` accepts any HTML tag, not just `div`/`p`.** Two patterns are worth using for reference or instructional content:
+**`$el` is raw HTML — use real elements, not just `div`/`p`.** Any tag name works (FormKit renders `$el` through Vue's `h()`). Two patterns earn their keep for reference/instructional content:
 
 - **Long reference content → a real list, not a comma run-on.** A sentence like "Sanctioned countries include: A, B, C, … N" crammed into one `$el: "p"` is hard to scan. Use `$el: "ul"` (`list-disc pl-5`) with an `$el: "li"` per item.
-- **Reference content that shouldn't dominate the step → a native `<details>`/`<summary>` disclosure.** `$el: "details"` with an `$el: "summary"` child is a collapsible block with pointer text — no scripting, keyboard-accessible, works in light and dark mode, collapsed by default (add `"open": true` to start open). Style it with utility classes (`$el` nodes aren't styled automatically), keeping to standard ones (`cursor-pointer`, `select-none`, `list-disc`, `pl-5`, `opacity-70`).
+- **Reference content that shouldn't dominate the step → a native `<details>`/`<summary>` disclosure.** `$el: "details"` with an `$el: "summary"` child is a collapsible block with pointer text — no JS, no form state, keyboard-accessible, light/dark safe, collapsed by default (add `"open": true` to start open). Style with utility classes (the theme can't reach `$el`), and keep them to ones the build compiles (`cursor-pointer`, `select-none`, `list-disc`, `pl-5`, `opacity-70`, etc.).
 
 ```json
 {
@@ -620,9 +713,9 @@ Use the inline class pattern above. Do not invent new colour values — read the
 }
 ```
 
-### Validation messages for long labels
+### Validation Messages for Long Labels
 
-The default `required` message is `"<label> is required."`. When a field's label is a full question or long sentence — common on compliance forms — the default echoes the entire question back, which reads badly.
+FormKit's default `required` message is `"<label> is required."`. When a field's label is a full question or long sentence — common on compliance forms ("Does your business, its Shareholders or Company Directors trade in products or services that originate from…?") — the default message echoes the entire question back, which reads badly.
 
 Override the message per rule with `validationMessages` (an object keyed by rule name):
 
@@ -637,7 +730,9 @@ Override the message per rule with `validationMessages` (an object keyed by rule
 }
 ```
 
-Apply this to every **required** field whose label is a question or long sentence. **Leave short noun labels on the default** — "Legal Company Name is required" is clearer than "This question is required" for a plainly-labelled input. `validationMessages` is per-input; there is no form-level default, so set it on each field that needs it.
+Apply this to every **required** field whose label is a question or long sentence (radios, sentence-labelled numbers/text/textarea). **Leave short noun labels on the default** — `"Legal Company Name is required"` is clearer than `"This question is required"` for a plainly-labelled input. Don't blanket every field; the override only earns its place where the label is too long to repeat.
+
+`validationMessages` is per-input — there is no schema-level or form-level inheritance for it (global defaults would mean editing `formkit.config.ts`, which is out of scope for a schema change). For a batch rollout across many fields, edit the JSON with a script that targets fields by `name` rather than hand-editing each — radios share near-identical option blocks, so exact-string edits are error-prone.
 
 ### Regex in `matches` Validation
 
@@ -661,13 +756,13 @@ FormKit's string-style validation parser has two characters that **cannot appear
 
 For variable-length patterns (e.g. phone numbers), use `*` or `+` quantifiers instead — these are single characters and are not affected.
 
-### Common pitfalls
+### Known Failure Modes
 
-Each row below is a recurring schema authoring mistake. Apply the corresponding fix when generating or auditing schemas. Ordered roughly by severity (most disruptive first).
+Every one of these was hit in production. Ordered from worst to least bad.
 
 | Failure | Cause | Fix |
 |---|---|---|
-| Form save fails before request leaves the browser | Schema root is a JSON object (`{ "$formkit": "multi-step", ... }`) instead of a JSON array. The schema root must always be a JSON array; an object root is rejected client-side and the user sees a generic "Error creating form" toast | Wrap the schema root in `[ ... ]`. Even a form with a single root multi-step node must be `[ { "$formkit": "multi-step", ... } ]` |
+| Form save fails before request leaves the browser | Schema root is a JSON object (`{ "$formkit": "multi-step", ... }`) instead of a JSON array. `FormKitSchema.nodes` is `google.protobuf.ListValue` and only decodes from an array; protobuf-es throws `cannot decode message google.protobuf.ListValue from JSON object` and the user sees only a generic "Error creating form" toast (BNDRY-5937) | Wrap the schema root in `[ ... ]`. Even a form with a single root multi-step node must be `[ { "$formkit": "multi-step", ... } ]` |
 | App freezes (infinite loop) | `$formkit` input with computed `value` expression | Use `$el` divs for all computed displays |
 | App crashes (no error) | Method chaining after `.value` (e.g. `.includes()`) | Restructure logic — use equality checks or separate fields |
 | Regex validation never matches | Curly-brace quantifiers (`{4}`, `{9,12}`) in `matches` regex — FormKit's expression parser consumes the braces instead of passing them to the regex engine | Rewrite without curly braces: repeat `\d` explicitly or use `*`/`+` quantifiers |
@@ -688,15 +783,15 @@ Each row below is a recurring schema authoring mistake. Apply the corresponding 
 | Currency displayed as raw number | Monetary field uses `$formkit: "number"` or `"text"` — no currency symbol, no locale formatting | Use `$formkit: "currency"` with `currency: "AUD"`, `displayLocale: "en-AU"`, `decimals: 2`, `minDecimals: 2`, `min: 0` |
 | Date input rendered as browser-native (poor UX) | `$formkit: "date"` used — inconsistent mobile rendering, no BNDRY theming, ISO string output | Replace with `$formkit: "datepicker"` with standard BNDRY config (`clearable`, `format.date long`, `overlay`, `pickerOnly`, `sequence day`) |
 | Date+time datepicker completely non-interactive | `format.time: "2-digit"` — not a valid datepicker time format value. Causes the field to lock entirely: no typing, no picker, nothing. Affects fields with `sequence: ["day", "time"]` | Use `format.time: "short"` for all date+time datepicker fields |
-| File double-validation errors | `fileExt`, `fileSize`, or `fileUpload` added manually to `validation` string — file fields already have these applied automatically | Remove manual file validation rules; they are applied for you |
-| File rejected despite being in `accept` list | `accept` includes an extension that BNDRY does not accept (e.g. `.mp4`, `.mov`, `.gif`, `.msg`, `.eml`) — the browser picker shows the file as selectable but extension validation rejects it on upload | Only use extensions from BNDRY's supported list: `doc, docx, ppt, pptx, xls, xlsx, csv, txt, odt, ods, odp, pdf, jpg, jpeg, png` |
+| File double-validation errors | `fileExt`, `fileSize`, or `fileUpload` added manually to `validation` string — `bndryFormkitFilePlugin` already applies these automatically | Remove manual file validation rules; the plugin handles them |
+| File rejected despite being in `accept` list | `accept` includes an extension not in the plugin's supported list (e.g. `.mp4`, `.mov`, `.gif`, `.msg`, `.eml`) — the browser picker shows the file as selectable but `fileExt` validation rejects it on upload | Only use extensions from the plugin's supported list: `doc, docx, ppt, pptx, xls, xlsx, csv, txt, odt, ods, odp, pdf, jpg, jpeg, png` |
 | Draft pre-fills wrong fields after schema rename | Field or step `name` changed after deployment — localStorage drafts are keyed by old names; stale values pre-populate into wrong fields | Treat `name` changes on deployed schemas as a breaking change; coordinate with users or accept drafts will be stale |
 | Fields have no grid placement | `stepInnerClass` missing from step — `!col-span-1`/`!col-span-2` on fields have no effect without a CSS grid parent | Add `stepInnerClass: "grid grid-cols-2 gap-4"` to every step |
 | Fields span wrong width | `$formkit` field missing `outerClass` with `!col-span-1`/`!col-span-2` | Add `outerClass: "!col-span-2"` or `"!col-span-1"` to every direct-step-child field — do not include `!max-w-none` (the theme's global outer already handles `max-w-none` for all `$formkit` inputs) |
 | `$el` elements bleed to full row or collapse | `$el` node (heading, description div, conditional wrapper) missing `!col-span-2` in `attrs.class` — renders in a single grid column | Append `!col-span-2` to `attrs.class` on every `$el` direct step child |
 | `$el` elements run together | Adjacent `$el` nodes (headings, text divs) have no automatic spacing from the theme engine | Add `mb-4 !col-span-2` to intro text wrapper divs, `mt-2` to h3 after h2, `mt-4 mb-6 !col-span-2` to computed display blocks |
 | Adjacent headings concatenate into one line | `$el` heading with `!inline-flex` directly followed by another `$el` heading — both are inline-flex siblings so they flow side by side | Use `!block` on all h2 and h3 elements (not `!inline-flex`) |
-| Unstyled section headings | `$el` headings (h2/h3) without Tailwind classes — the theme engine cannot reach `$el` nodes | Add the standard heading classes via `attrs.class` (see the inline-class pattern in the `$el` Headings section) |
+| Unstyled section headings | `$el` headings (h2/h3) without Tailwind classes — the theme engine cannot reach `$el` nodes | Add the standard heading classes via `attrs.class` (temporary workaround until reusable heading components exist) |
 | Invisible/unreadable elements | Inline `style` attributes with hardcoded colours that assume light or dark mode | Remove inline styles — rely on the centralised FormKit theme |
 | Repeater `validation` silently ignored | `validation: "required"` (or any rule) set directly on a repeater node — FormKit does not apply validation to the repeater wrapper itself, so the field always passes regardless of row count | Remove `validation` from the repeater node; use `min: 1` to require at least one entry |
 | Dead markup / empty divs | Remnant `$el` divs left after stripping custom UI (e.g. progress bars) — render as invisible empty elements | Remove empty `$el` nodes that have no children, attrs, or conditional logic |
@@ -706,5 +801,6 @@ Each row below is a recurring schema authoring mistake. Apply the corresponding 
 | Saved form data lost on reload | `$formkit: "multi-step"` node has no `name` — FormKit auto-assigns an incrementing key (`multi-step_1`, `multi-step_2`, etc.) on each mount. Data saved under `multi-step_2` won't be found when the form remounts as `multi-step_1`, so the form appears blank | Add a stable `name` to the multi-step node (e.g. `"name": "incident_uar"`) so saved data is always keyed consistently |
 | Datepicker rejects valid dates | Hardcoded `maxDate` or `minDate` on a datepicker (e.g. `"maxDate": "2002-12-31"` on a DOB field intended to enforce 18+) — the constraint becomes stale as time passes and blocks legitimately valid dates | Do not use hardcoded date bounds as age gates. Remove `maxDate`/`minDate` unless the field genuinely requires a fixed calendar boundary (e.g. "date must be before 2025-01-01"). Age-based validation belongs in application logic, not the schema |
 | Signature canvas doesn't render or scale | `$formkit: "signature"` placed inside a `repeater` — the `ResizeObserver`-based canvas scaling doesn't work correctly within repeater rows | Place signature fields as direct step children, not inside repeaters |
+| Schema class does nothing (e.g. progress bar won't hide) | A utility class used only in schema JSON — `tabsClass: "!hidden"`, an arbitrary variant, a one-off colour — isn't in the compiled CSS. Tailwind v4 scans `.vue`/`.ts`/theme source, never the DB-stored schema, so the rule was never generated and the class is inert (no error) | Use a class already emitted by the build, or add the class string to `utilityClassInclusions` in `web/shared/src/pkgs/formkit/formkit.theme.overrides.ts` — the BNDRY-canonical place for schema-only utility inclusions. Don't debug by re-reading the schema — the schema is fine; the CSS is missing |
 | Validation error echoes the whole question | Default `required` message is `"<label> is required."`; on a sentence/question label it repeats the entire question | Add `validationMessages: { "required": "This question is required" }` to that field (keep short noun labels on the default) |
-| An entity type can't submit | A `required` identifier that only some entity types possess (e.g. a company number required, but Sole Trader/Partnership/Trust selected) blocks those users — they have nothing valid to enter | `required` can't be conditional; gate a required copy behind an `if` for the applicable types, or make the field optional |
+| An entity type can't submit | A `required` identifier that only some `entity_type`s possess (e.g. ACN required, but Sole Trader/Partnership/Trust selected) blocks those users — they have nothing valid to enter | `required` can't be conditional in the validation string; gate a required copy behind an `if` for the applicable types, or make the field optional |
