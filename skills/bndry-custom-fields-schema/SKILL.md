@@ -211,7 +211,7 @@ After the pre-paste instructions, always include:
 - **Unsupported requests** — anything requested that couldn't be honoured, with alternatives: e.g. "You asked for 'must be 18 or older' on date of birth — date comparison rules don't exist. I left it as an optional date field. Use a `number` age field with `min`/`max` if you need validation."
 - Anything to double-check (regex patterns, option values, derived keys)
 
-For schemas longer than ~100 lines, also save a `.json` file to `/mnt/user-data/outputs/` and present it via `present_files`.
+For schemas longer than ~100 lines, also save a `.json` file and present it: on claude.ai save to `/mnt/user-data/outputs/` and call `present_files`; in local runtimes (Claude Code, Claude Desktop) write it to a local folder such as `~/Downloads/` and give the user the path.
 
 ---
 
