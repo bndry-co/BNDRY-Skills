@@ -1,0 +1,143 @@
+{
+  "$formkit": "multi-step",
+  "outerClass": "!w-full",
+  "wrapperClass": "!max-w-none",
+  "allow-incomplete": true,
+  "children": [
+    {
+      "$formkit": "step",
+      "name": "details",
+      "label": "Details",
+      "children": [
+        {
+          "$el": "h3",
+          "children": "Section 1: Details",
+          "attrs": { "class": "!inline-flex block !block" }
+        },
+        {
+          "$formkit": "text",
+          "name": "details",
+          "id": "details_id",
+          "label": "Details",
+          "outerClass": "!max-w-none",
+          "validation": "required|matches:/^\\d{4}$/"
+        },
+        {
+          "$formkit": "text",
+          "name": "phone",
+          "label": "Phone",
+          "outerClass": "!col-span-2",
+          "validation": "matches:/^(\\+61|04)\\d+$/"
+        },
+        {
+          "$formkit": "date",
+          "name": "dob",
+          "outerClass": "!col-span-2"
+        },
+        {
+          "$formkit": "datepicker",
+          "name": "incident_at",
+          "format": { "date": "long", "time": "2-digit" },
+          "sequence": ["day", "time"],
+          "outerClass": "!col-span-2"
+        },
+        {
+          "$formkit": "number",
+          "name": "phone",
+          "label": "Duplicate name",
+          "outerClass": "!col-span-2"
+        },
+        {
+          "$formkit": "checkbox",
+          "name": "agree",
+          "id": "agree",
+          "label": "I agree",
+          "outerClass": "!col-span-2"
+        },
+        {
+          "$formkit": "checkbox",
+          "name": "regulators",
+          "id": "regulators",
+          "options": ["AUSTRAC", "ASIC"],
+          "outerClass": "!col-span-2"
+        },
+        {
+          "$el": "div",
+          "if": "$get(agree).value === 'true'",
+          "attrs": { "class": "" },
+          "children": [
+            { "$formkit": "text", "name": "agree_detail", "outerClass": "!col-span-2", "style": "color: red" }
+          ]
+        },
+        {
+          "$el": "div",
+          "if": "$get(regulators).value === 'austrac'",
+          "key": "reg_block",
+          "attrs": { "class": "!col-span-2" },
+          "children": [
+            { "$formkit": "text", "name": "austrac_licence", "key": "austrac_licence", "outerClass": "!col-span-2" }
+          ]
+        },
+        {
+          "$formkit": "text",
+          "name": "computed",
+          "value": "$: $get(score_a).value * 1 + $get(score_b).value * 1",
+          "outerClass": "!col-span-2"
+        },
+        {
+          "$el": "div",
+          "attrs": { "class": "!col-span-2" },
+          "children": "($get(score_a).value || 0) * 1"
+        },
+        {
+          "$el": "div",
+          "attrs": { "class": "!col-span-2" },
+          "children": "$: $get(missing_field).value.includes('x') && $other_field"
+        },
+        {
+          "$formkit": "select",
+          "name": "score_a",
+          "id": "score_a",
+          "options": { "0": "None", "5": "Some" },
+          "outerClass": "!col-span-1"
+        },
+        {
+          "$el": "div",
+          "attrs": { "class": "!col-span-2" },
+          "children": "$: $get(score_a).value * 1"
+        },
+        {
+          "$formkit": "file",
+          "name": "evidence",
+          "accept": ".pdf,.mp4,.msg",
+          "validation": "required|fileExt",
+          "outerClass": "!col-span-2"
+        },
+        {
+          "$formkit": "currency",
+          "name": "amount",
+          "currency": "USD",
+          "decimals": 2,
+          "outerClass": "!col-span-2"
+        },
+        {
+          "$formkit": "repeater",
+          "name": "witnesses",
+          "validation": "required",
+          "outerClass": "!col-span-2",
+          "children": [
+            { "$formkit": "text", "name": "witness_name" },
+            { "$formkit": "signature", "name": "witness_sig", "outerClass": "!col-span-2" },
+            {
+              "$formkit": "text",
+              "name": "witness_extra",
+              "if": "$get(agree).value === true",
+              "key": "witness_extra"
+            }
+          ]
+        },
+        { "$el": "div" }
+      ]
+    }
+  ]
+}

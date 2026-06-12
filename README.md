@@ -37,6 +37,7 @@ Each skill directory has the same shape:
 - `SKILL.md` — the skill's instructions to the LLM
 - `references/` — supporting documentation the skill loads on demand
 - `templates/` — example structures to adapt
+- `scripts/` — deterministic helpers the skill runs instead of eyeballing (where present)
 
 ## Using a skill
 

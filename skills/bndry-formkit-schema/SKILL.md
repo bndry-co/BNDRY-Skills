@@ -1,6 +1,6 @@
 ---
 name: bndry-formkit-schema
-description: Use when building or editing FormKit JSON schemas for BNDRY. Covers multi-step form structure, expression syntax, conditional fields, computed displays, styling, and known failure modes.
+description: Use when building, editing, or auditing FormKit JSON schemas for BNDRY. Covers multi-step form structure, expression syntax, conditional fields, computed displays, styling, and known failure modes.
 argument-hint: "[file-path] [--audit]"
 ---
 
@@ -86,170 +86,114 @@ Before writing any JSON:
 ## 3. Build / Edit Phase
 
 - For new schemas, start from [multi-step-skeleton.json](templates/multi-step-skeleton.json)
-- Apply all rules from the Reference section below
-- Copy and update this progress tracker as you work:
+- Apply all rules from the Reference section below, tracking progress against the Rules Checklist
+- **Before delivering**, write the JSON to a file and run the mechanical validator; fix every CRASH and BUG finding:
 
 ```
-Schema Progress:
-- [ ] Schema root is a JSON array — top-level value starts with `[` and ends with `]` (an object root is rejected by the platform before the form can be saved)
-- [ ] Checked references/bndry-theme-reference.md — theme behaviour, safe classes, available inputs and plugin behaviour
-- [ ] outerClass on $formkit fields contains only !col-span-1 or !col-span-2 — do NOT add !max-w-none to regular fields (the global theme outer already sets max-w-none; only the multi-step root and repeater nodes need !max-w-none because the theme constrains their width)
-- [ ] $el heading classes use the same colour tokens as the theme's label section — no arbitrary colours
-- [ ] Multi-step root has outerClass/wrapperClass set to "!max-w-none" (no !w-full)
-- [ ] Multi-step root has tab-style: "progress" (styled by BNDRY theme — dots, connectors, dark mode)
-- [ ] Multi-step root has no allow-incomplete property (temporary testing flag only; remove before deploy)
-- [ ] If the progress bar is hidden (tabsClass: "!hidden"), confirmed with BNDRY that the `!hidden` utility is enabled for schemas AND every step has its own $el h2 heading as first child (otherwise the tabsClass is a silent no-op and the user loses their location cue)
-- [ ] No non-standard utility class used in a schema — only classes BNDRY has compiled into its stylesheet have any effect (see references/bndry-theme-reference.md for the safe set); anything else silently does nothing
-- [ ] Required fields with long question/sentence labels override the message via `validationMessages: { "required": "This question is required" }` (short noun labels keep the default)
-- [ ] No `required` used where it should be conditional — `required` can't read another field; gate the field behind an `if` (and mark it required there) or make it optional. Never `required` an identifier only some entity types have (e.g. ACN on a form that allows sole traders)
-- [ ] Every step has stepInnerClass: "grid grid-cols-2 gap-4"
-- [ ] Every $formkit field (direct step child) has outerClass: "!col-span-2" or "!col-span-1" (no !max-w-none — see above)
-- [ ] Every $el direct step child has !col-span-2 in attrs.class
-- [ ] Each step has at most one h3 heading by default — sub-sections only used when splitting into more steps would produce too many short steps (see Steps vs sections guidance)
-- [ ] No "Section N" / numbered section headings in `$el` content — use descriptive headings or split into a step
-- [ ] Distinct topics live in separate steps unless each topic is small enough that splitting would create choppy 1–2 field steps
-- [ ] Conditional $el div wrappers (with if/key) have !col-span-2 in attrs.class
-- [ ] No layout-only $el div wrappers (use !col-span-1 pairs on children directly)
-- [ ] Repeaters have outerClass: "!max-w-none !col-span-2"
-- [ ] Repeaters with short-field children have contentClass: "grid grid-cols-2 gap-4"
-- [ ] No `validation` property on repeater nodes — FormKit ignores it; use `min: 1` to require at least one entry
-- [ ] All $el h2 and h3 elements use !block (not !inline-flex)
-- [ ] All fields have `name`
-- [ ] All referenced fields have `id`
-- [ ] Expressions use only `$get(id).value` (no `$field_name`)
-- [ ] `children` expressions start with `$:` prefix
-- [ ] No method chaining after `.value`
-- [ ] No `|| 0` fallbacks in `children` expressions (causes literal text rendering)
-- [ ] Select arithmetic uses `* 1` cast
-- [ ] Scoring selects have default `value: "0"` to prevent NaN
-- [ ] Conditional nodes have `key` property
-- [ ] All `$formkit` children inside conditional `$el` wrapper divs have `key` properties
-- [ ] No checkbox groups used as conditional triggers (use `radio` for a single Yes/No gate; use one single-checkbox field per option for a "select all that apply" checklist where each option gates its own section)
-- [ ] Computed displays use `$el` divs (no `$formkit` with computed `value`)
-- [ ] No inline `style` attributes — rely on centralised FormKit theme
-- [ ] No custom colours or backgrounds on `$formkit` nodes
-- [ ] No $formkit node has section-level class overrides (labelClass, inputClass, wrapperClass) that duplicate what the theme already applies
-- [ ] No $el heading class contains redundant leading `block` alongside `!block` — use `!block` only
-- [ ] `$el` headings have standard heading classes
-- [ ] `$el` intro text divs have `mb-4 !col-span-2` spacing class
-- [ ] Adjacent `$el` headings have `mt-2` spacing on the second heading
-- [ ] Schema works in both light and dark mode
-- [ ] No empty/dead `$el` divs or remnant markup
-- [ ] Intro/instructional text is concise and consistent with other schemas
-- [ ] Validation rules applied
-- [ ] No curly-brace quantifiers in `matches` regex patterns
-- [ ] No pipe `|` alternation in `matches` regex patterns
-- [ ] Phone fields use `$formkit: "tel"` (not `"text"`)
-- [ ] Date-only fields use `$formkit: "datepicker"` (not native `"date"`) with standard config (clearable, format.date long, overlay, pickerOnly, sequence day)
-- [ ] No hardcoded `maxDate`/`minDate` used as age gates on datepickers — age-based validation belongs in application logic, not the schema
-- [ ] Date+time fields use `$formkit: "datepicker"` with `sequence: ["day", "time"]`, `pickerOnly: true`, `overlay: true`, and `format: { "date": "long", "time": "short" }` — `"2-digit"` is not a valid time format and causes the field to be completely non-interactive
-- [ ] Currency fields use `$formkit: "currency"` with `currency: "AUD"`, `displayLocale: "en-AU"`, `decimals: 2`, `minDecimals: 2`, `min: 0`
-- [ ] File fields default to `multiple: true` (omit only when the field is explicitly single-file) and have an `accept` attribute; no manual fileExt/fileSize/fileUpload in validation string
-- [ ] All extensions in `accept` are within the plugin's supported list: `doc, docx, ppt, pptx, xls, xlsx, csv, txt, odt, ods, odp, pdf, jpg, jpeg, png` — video, .gif, .msg, .eml and other formats are not supported and will be rejected
-- [ ] `$formkit: "signature"` fields have `outerClass: "!col-span-2"` and are not inside a repeater
-- [ ] Single checkbox conditionals use `=== true` (boolean), not `=== 'true'` or `=== 'yes'`
-- [ ] `id` equals `name` on every field that has both
-- [ ] No `$get()` inside repeater children (resolves at form scope, not row scope)
-- [ ] `dropdown` used by default for picklists, with `deselect: !required`, `selectionRemovable: !required`, `popover: true`; `select` only used for scoring fields or other narrow special cases
-- [ ] Multi-step root has a stable `name` property (prevents hydration key mismatch on reload)
-- [ ] No field `name` matches any step `name` in the same form (name collision)
-- [ ] No duplicate field `name` values within the same step
+python3 scripts/validate_schema.py <schema.json>
 ```
+
+### Rules Checklist (all modes)
+
+One checklist drives both build and audit. In **build/edit mode**, copy it as a progress tracker and tick items off as you work. In **audit mode**, evaluate every item against the schema (see §4).
+
+Items tagged **[auto]** are verified mechanically by [scripts/validate_schema.py](scripts/validate_schema.py) — run it rather than eyeballing them (but don't write violations in the first place). Untagged items are judgement calls the script can't make. The Reference section below holds the full explanation and fix for every item.
+
+**Process (build mode):**
+
+- [ ] Checked references/bndry-theme-reference.md — theme behaviour, safe classes, available inputs and plugin behaviour
+
+**A. App crash:**
+
+- [ ] Schema parses as valid JSON [auto]
+- [ ] Schema root is a JSON array `[ ... ]`, not an object — an object root is rejected by the platform before the form can be saved [auto]
+- [ ] Computed displays use `$el` divs — no `$formkit` input with a computed `value` expression (infinite re-render) [auto]
+- [ ] No method chaining after `.value` (`.includes()`, `.length`, `.trim()`) [auto]
+- [ ] `children` expressions start with `$:` prefix [auto]
+
+**B. Silent bugs:**
+
+- [ ] All fields have `name` [auto]
+- [ ] All `$get()`-referenced fields have `id` [auto]
+- [ ] `id` equals `name` on every field that has both [auto]
+- [ ] No field `name` matches any step `name` in the same form [auto]
+- [ ] No duplicate field `name` values within the same step [auto]
+- [ ] Multi-step root has a stable `name` property (prevents hydration key mismatch on reload) [auto]
+- [ ] Expressions use only `$get(id).value` (no `$field_name`) [auto]
+- [ ] No `|| 0` fallbacks in `children` expressions (causes literal text rendering) [auto]
+- [ ] Select arithmetic uses `* 1` cast; scoring selects have default `value: "0"` to prevent NaN [auto: missing default]
+- [ ] Conditional nodes have `key`; all `$formkit` children inside conditional `$el` wrapper divs have their own `key` [auto]
+- [ ] No checkbox groups used as conditional triggers — `radio` for a single Yes/No gate; one single-checkbox field per option for a "select all that apply" checklist where each option gates its own section [auto]
+- [ ] Single checkbox conditionals use `=== true` (boolean), not `=== 'true'` or `=== 'yes'` [auto]
+- [ ] Whole-topic conditionals put `if` (and `key`) on the `$formkit: "step"` node itself — never a step whose entire content is conditional wrappers (leaves a stub step in the progress bar)
+- [ ] No separate sibling `checkbox`/`radio` gating an "Other — specify" field — fold "Other" into the parent group's `options` array, or render the specify field unconditionally
+- [ ] No `$get()` inside repeater children (resolves at form scope, not row scope) [auto]
+- [ ] No `validation` property on repeater nodes — FormKit ignores it; use `min: 1` [auto]
+- [ ] No curly-brace quantifiers or pipe `|` alternation in `matches` regex patterns [auto]
+- [ ] No `required` where it should be conditional — gate the field behind an `if` (and mark it required there) or make it optional. Never `required` an identifier only some entity types have (e.g. ACN on a form that allows sole traders)
+
+**C. Input types / Australian defaults:**
+
+- [ ] Phone fields use `$formkit: "tel"` (not `"text"`)
+- [ ] Date-only fields use `$formkit: "datepicker"` (not native `"date"` [auto]) with standard config (clearable, format.date long, overlay, pickerOnly, sequence day)
+- [ ] Date+time datepickers use `format.time: "short"` — `"2-digit"` makes the field completely non-interactive [auto]
+- [ ] No hardcoded `maxDate`/`minDate` used as age gates — age-based validation belongs in application logic
+- [ ] Currency fields use `$formkit: "currency"` with `currency: "AUD"`, `displayLocale: "en-AU"`, `decimals: 2`, `minDecimals: 2`, `min: 0` [auto: AUD/locale/minDecimals]
+- [ ] File fields default to `multiple: true` (omit only when explicitly single-file); `accept` set and within the plugin's supported list [auto]; no manual fileExt/fileSize/fileUpload in the validation string [auto]
+- [ ] `dropdown` used by default for picklists, with `deselect: !required`, `selectionRemovable: !required`, `popover: true`; `select` only for scoring fields or other narrow special cases
+- [ ] `$formkit: "signature"` fields have `outerClass: "!col-span-2"` and are not inside a repeater [auto]
+
+**D. Layout / configuration:**
+
+- [ ] Multi-step root has `tab-style: "progress"`, `outerClass`/`wrapperClass` set to `"!max-w-none"` (no `!w-full`), and no `allow-incomplete` property [auto]
+- [ ] If the progress bar is hidden (`tabsClass: "!hidden"`), confirmed with BNDRY that the `!hidden` utility is enabled for schemas AND every step has its own `$el` h2 heading as first child
+- [ ] No non-standard utility class used — only classes BNDRY has compiled into its stylesheet have any effect (see references/bndry-theme-reference.md for the safe set); anything else silently does nothing
+- [ ] Every step has `stepInnerClass: "grid grid-cols-2 gap-4"` [auto]
+- [ ] Every `$formkit` direct step child has `outerClass: "!col-span-2"` or `"!col-span-1"` [auto]
+- [ ] Every `$el` direct step child (including conditional div wrappers) has `!col-span-2` in `attrs.class` [auto]
+- [ ] No layout-only `$el` div wrappers (use `!col-span-1` pairs on children directly)
+- [ ] Repeaters have `outerClass: "!max-w-none !col-span-2"` [auto]; repeaters with short-field children have `contentClass: "grid grid-cols-2 gap-4"`
+- [ ] All `$el` h2 and h3 elements use `!block` (not `!inline-flex`) [auto]
+- [ ] At most one h3 heading per step by default; no "Section N" numbered headings [auto]; distinct topics live in separate steps (see Steps vs sections guidance)
+- [ ] Required fields with long question/sentence labels override via `validationMessages: { "required": "This question is required" }` (short noun labels keep the default)
+
+**E. Theme compatibility** (cross-reference [references/bndry-theme-reference.md](references/bndry-theme-reference.md)):
+
+- [ ] `outerClass` on `$formkit` fields contains only `!col-span-1` or `!col-span-2` — no `!max-w-none` (theme's global outer already applies it [auto]); other classes risk conflicting with the theme
+- [ ] `$el` heading classes use the same colour tokens as the theme's label section — no arbitrary colours
+- [ ] No redundant `block` alongside `!block` [auto]
+- [ ] No section-level class overrides (labelClass, inputClass, wrapperClass) that duplicate what the theme already applies
+
+**F. Content / cosmetic:**
+
+- [ ] No inline `style` attributes [auto]; no custom colours or backgrounds on `$formkit` nodes; schema works in both light and dark mode
+- [ ] `$el` headings have standard heading classes; intro text divs have `mb-4 !col-span-2`; adjacent headings have `mt-2` on the second
+- [ ] No empty/dead `$el` divs or remnant markup [auto]
+- [ ] Intro/instructional text is concise and consistent with other schemas
+- [ ] No club/venue/brand-specific names in labels, option values, help text, or placeholders — flag to the user and ask before genericising
+- [ ] "player"/"gaming" terminology, never "gambler"/"gambling" (unless quoting legislation verbatim)
+- [ ] Prose-bearing fields follow the style rules in Australian Defaults (sentence case for help text; Title Case labels)
+- [ ] Validation rules applied where the requirements call for them
 
 ---
 
 ## 4. Audit Phase (audit mode only)
 
-Run every check below against the schema. For each violation found, report:
+1. **Run the mechanical validator first** — it covers every item tagged [auto] in the Rules Checklist (§3) and reports severity, location, and fix for each finding:
 
-- **Rule violated**
-- **Location** in schema (field name / JSON path)
-- **Severity**: App crash, silent bug, or cosmetic
-- **Fix**: Specific remediation
+   ```
+   python3 scripts/validate_schema.py <schema.json>
+   ```
 
-**Audit checklist** (ordered by severity):
+   Include its findings in the report verbatim. Do not re-derive them by eye, and do not skip the script — eyeballing is exactly where these checks get missed.
 
-1. **App crash checks:**
-   - Schema root is **not** a JSON array (top-level value is an object `{ ... }` instead of `[ ... ]`)? → Wrap the existing root in `[ ... ]`. The platform only accepts a JSON array root — an object root is rejected before the request is sent and the user sees only a generic "Error creating form" toast
-   - Any `$formkit` input with a computed `value` expression? → Use `$el` div instead
-   - Any method chaining after `.value` (`.includes()`, `.length`, `.trim()`)? → Restructure logic
-   - Any `children` expression string that doesn't start with `$:`? → Add `$:` prefix
+2. **Walk the untagged checklist items** (§3) manually — these are the judgement calls: theme cross-referencing against references/bndry-theme-reference.md, steps-vs-sections structure, conditional-`required` traps, content and terminology.
 
-2. **Silent bug checks:**
-   - Any field missing a `name` property? → Add `name` — it becomes the key in submitted data and is mandatory on every field
-   - Any `matches:` regex using curly-brace quantifiers (`{n}`, `{n,m}`)? → Rewrite without curly braces (see Regex in `matches` Validation)
-   - Any `matches:` regex using pipe `|` for alternation (e.g. `(a|b)`)? → Restructure without pipes (see Regex in `matches` Validation)
-   - Any `$get(id)` where the referenced field has no `id` property? → Add `id`
-   - Any conditional node missing a `key` property? → Add `key`
-   - Any `$formkit` fields inside conditional `$el` wrapper divs missing `key` properties? → Add `key` matching field `name`
-   - Any `$field_name` references instead of `$get(id).value`? → Replace with `$get()`
-   - Any checkbox group used as a conditional trigger (`$get(checkbox_id).value === 'value'`)? → Replace with a `radio` (single gate) or, for a "select all that apply" set where each option reveals its own section, one single-checkbox field per option gated with `=== true`
-   - Any scoring select without a default `value: "0"`? → Add default value
-   - Any arithmetic on select values without `* 1` cast? → Add `* 1`
-   - Any `|| 0` fallback in a `children` expression? → Remove and use default values instead
-   - Any field `name` that matches a step `name` anywhere in the same multi-step form? → Rename the field — FormKit's scope resolution can confuse the step node with the field, causing `$get()` to resolve the wrong node and producing unexpected data structure or silent mismatch
-   - Any duplicate field `name` values within the same step? → Each `name` must be unique within its step
-   - `$formkit: "multi-step"` node missing a `name` property? → Add a unique stable name (e.g. `"name": "incident_uar"`) — without it FormKit auto-assigns an incrementing key (`multi-step_1`, `multi-step_2`, etc.) on each mount, so saved data keyed under one mount is not found on the next
-   - Any field where `id` and `name` differ? → Make them match — diverging values create a confusing disconnect between expression scoping and submitted data keys
-   - Any `$get()` used inside a repeater's children? → Remove; `$get()` resolves at form/step scope, not the current repeater row, so the result is always the form-level value — intra-row conditionals must be handled at the app level
-   - Any repeater node with a `validation` property? → Remove it — FormKit does not apply validation to the repeater wrapper; use `min: 1` to require at least one entry
-   - Any single checkbox conditional using `=== 'true'` or `=== 'yes'` instead of `=== true`? → Fix to boolean comparison — single checkboxes return `true`/`false`, not strings
-   - Any step whose entire content is wrapped in conditional `$el: "div"` blocks driven by the same expression? → Move the `if` (and a `key`) onto the `$formkit: "step"` node itself so the step is hidden from the progress bar when not applicable, instead of rendering an empty step
-   - Any separate `checkbox`/`radio` sibling field used to gate an "Other — specify" text input below a checkbox group? → Fold "Other" into the parent checkbox group's `options` array, or render the "specify" text field unconditionally — the sibling field creates a visible gap and (for checkbox groups) can't gate the conditional anyway
-
-3. **Input type / Australian defaults checks:**
-   - Any `$formkit: "date"` field? → Replace with `$formkit: "datepicker"` using the standard BNDRY config (`clearable`, `format: { date: "long" }`, `overlay`, `pickerOnly`, `sequence: ["day"]`)
-   - Any `$formkit: "datepicker"` with `"time"` in its `sequence` using `format.time: "2-digit"`? → Change to `format.time: "short"` — `"2-digit"` is not a valid value and causes the field to be completely non-interactive (no typing, no picker)
-   - Any `$formkit: "datepicker"` with a hardcoded `maxDate` or `minDate` used as an age gate (e.g. `"maxDate": "2002-12-31"` to enforce 18+)? → Remove — hardcoded date bounds become stale over time and block valid dates; age-based validation belongs in application logic
-   - Any monetary amount field using `$formkit: "text"` or `$formkit: "number"`? → Replace with `$formkit: "currency"` with `currency: "AUD"`, `displayLocale: "en-AU"`, `decimals: 2`, `minDecimals: 2`, `min: 0`
-   - Any `$formkit: "currency"` field missing `currency: "AUD"` or `displayLocale: "en-AU"`? → Add BNDRY defaults
-   - Any `$formkit: "currency"` field missing `minDecimals: 2`? → Add it — without it the field displays an integer (no cents) even though `decimals: 2` is set
-   - Any file field with `fileExt`, `fileSize`, or `fileUpload` in the `validation` string? → Remove — BNDRY's file handling auto-applies these; manual addition causes double-validation errors
-   - Any file field missing `multiple: true`? → Add it unless the field is explicitly single-file (e.g. single ID document, single profile photo) — `multiple: true` is the default for BNDRY file fields
-   - Any file field missing an `accept` attribute where a specific type restriction is appropriate? → Add extension filter (the plugin's default list is broad; `accept` narrows the picker dialog to guide users)
-   - Any `accept` value containing extensions outside the plugin's supported list (video formats, `.gif`, `.msg`, `.eml`, etc.)? → Remove them — the plugin's `fileExt` validation will reject these files regardless of what appears in the picker
-   - Any `$formkit: "select"` used for a non-scoring picklist? → Replace with `$formkit: "dropdown"` and set `deselect: !required`, `selectionRemovable: !required`, `popover: true`. `select` is reserved for scoring fields (where arithmetic on string option values matters) and other narrow special cases
-   - Any `$formkit: "signature"` inside a `repeater`? → Move outside — canvas inputs do not scale correctly within repeater rows
-   - Any `$formkit: "signature"` missing `outerClass: "!col-span-2"`? → Add it
-
-4. **Layout / configuration checks:**
-   - Root multi-step node missing `tab-style: "progress"`? → Add it (the BNDRY theme styles progress dots, connectors, visited state, and dark mode under `data-[tab-style=progress]`)
-   - Any root multi-step node with `allow-incomplete` property? → Remove it (temporary testing flag; must not be deployed)
-   - Any `tabsClass: "!hidden"` (or other class) used to hide the progress bar without confirming the `!hidden` utility is enabled for schemas? → Flag as a potential silent no-op; confirm with BNDRY or remove the dead prop. And confirm every step has its own `$el: "h2"` first child once the bar is hidden
-   - Any non-standard utility class present only in the schema (not in the safe set documented in references/bndry-theme-reference.md)? → It is not in BNDRY's compiled stylesheet and is a silent no-op; replace with a documented class or ask BNDRY to enable it
-   - Any field with a `required` rule whose label is a long question/sentence and no `validationMessages.required` override? → Add `validationMessages: { "required": "This question is required" }` so the error doesn't echo the whole question (leave short noun labels on the default)
-   - Any `required` field that only applies under certain answers, or an identifier only some `entity_type`s have (e.g. ACN with sole-trader/partnership options)? → `required` can't be conditional; gate a required copy behind an `if`, or make the field optional
-   - Root multi-step missing `outerClass: "!max-w-none"` or `wrapperClass: "!max-w-none"`? → Add them (theme constrains multi-step width without these)
-   - Any root multi-step with `!w-full` in `outerClass` or `wrapperClass`? → Strip to `"!max-w-none"`
-   - Any step missing `stepInnerClass: "grid grid-cols-2 gap-4"`? → Add it
-   - Any `$formkit` field (direct step child) missing `outerClass`? → Add `outerClass: "!col-span-2"` (or `!col-span-1` if it pairs with a sibling)
-   - Any `$el` direct step child without `!col-span-2` in `attrs.class`? → Append `!col-span-2`
-   - Any conditional `$el: "div"` wrapper (has `if`/`key`) missing `!col-span-2` in `attrs.class`? → Add `"attrs": {"class": "!col-span-2"}`
-   - Any layout-only `$el: "div"` wrapper (no `if`, no `key`, no meaningful class) grouping fields? → Remove the wrapper; give children `!col-span-1` or `!col-span-2` directly
-   - Any step containing more than one `$el: "h3"` heading (sub-sections within a step)? → Default response: split into separate steps. Only keep the multi-heading step if splitting would produce very short (<3 field) steps and the sub-headings genuinely belong on the same topic — see Steps vs sections guidance
-   - Any `$el` heading text starting with "Section N", "Part N", or similar numbered-section labelling? → Rename to a descriptive heading, or split the content into a separate step. Numbered sections inside a step are almost always a sign the form should have been multi-step in the first place
-   - Any repeater (direct step child) missing `outerClass: "!max-w-none !col-span-2"`? → Add it
-   - Any repeater with short-field children missing `contentClass: "grid grid-cols-2 gap-4"`? → Add it and give child fields appropriate `!col-span-1`/`!col-span-2`
-   - Any `$el: "h2"` or `$el: "h3"` with `!inline-flex` in `attrs.class`? → Change to `!block`
-   - Any phone field using `$formkit: "text"` instead of `"tel"`? → Change to `tel`
-
-5. **Theme compatibility checks** (cross-reference [references/bndry-theme-reference.md](references/bndry-theme-reference.md)):
-   - Any `outerClass` on a `$formkit` field containing `!max-w-none`? → Remove it — the global theme outer already sets `max-w-none` for all `$formkit` inputs; `!max-w-none` is only needed on the multi-step root and repeater nodes where the theme constrains their width
-   - Any `outerClass` on a `$formkit` field containing classes other than `!col-span-1`, `!col-span-2`? → Other classes risk duplicating or conflicting with theme-applied classes; check the theme before adding them
-   - Any `$el` heading using colour classes that don't match the theme's label colour tokens? → Replace with the label colour tokens documented in references/bndry-theme-reference.md
-   - Any `$el` heading class containing the redundant leading `block` alongside `!block`? → Remove `block`, keep only `!block`
-   - Any `$formkit` node with section-level class overrides (`labelClass`, `inputClass`, `wrapperClass`) that duplicate what the theme already applies? → Remove the redundant override
-
-6. **Styling/cosmetic checks:**
-   - Any inline `style` attributes? → Remove, rely on centralised theme
-   - Any `$el` heading (h2/h3) without the standard Tailwind heading classes? → Add classes
-   - Any `$el` intro text div without `class: "mb-4 !col-span-2"`? → Add spacing and col-span
-   - Any `$el` heading immediately after another heading without `mt-2` on the second heading? → Add spacing
-   - Any hardcoded colours or backgrounds on `$formkit` nodes? → Remove
-   - Any empty/dead `$el` divs with no children or attrs? → Remove
-   - Any verbose multi-paragraph intro text? → Condense to single paragraph
-   - Any club/venue/brand-specific names in labels, option values, help text, or placeholders (e.g. "Souths", "The Juniors", "Easts", "Top 30 [Venue]", "[Club] Loyalty Member")? → Flag to the user and ask whether to genericise — schemas are reused across tenants
-   - Any uses of "gambler" / "gambling" terminology where "player" / "gaming" would fit? → Replace with the neutral term unless quoting legislation verbatim
+3. **For each violation found, report:**
+   - **Rule violated**
+   - **Location** in schema (field name / JSON path)
+   - **Severity**: checklist group — A app crash, B silent bug, C input type, D layout, E theme, F cosmetic
+   - **Fix**: specific remediation (the Reference section below holds the full fix for every rule)
 
 ---
 
@@ -265,7 +209,7 @@ Run every check below against the schema. For each violation found, report:
 
 ### Form Skeleton
 
-Every BNDRY form must use the multi-step skeleton for full-width rendering. Use [multi-step-skeleton.json](templates/multi-step-skeleton.json) as a starting point.
+Every BNDRY form must use the multi-step skeleton for full-width rendering. Use [multi-step-skeleton.json](templates/multi-step-skeleton.json) as a starting point. (The skeleton's heading colour tokens were verified against the theme's label tokens as of June 2026 — if they've since diverged, references/bndry-theme-reference.md is authoritative.)
 
 **The schema root must be a JSON array** — the top-level value must start with `[` and end with `]`, even when the form has a single root multi-step node. BNDRY stores the schema as a list of nodes and only accepts a JSON array root. If you submit a schema whose root is a JSON **object** (e.g. `{ "$formkit": "multi-step", ... }` instead of `[ { "$formkit": "multi-step", ... } ]`), the save is rejected before the request reaches the server and the user sees only a generic "Error creating form" toast.
 
@@ -431,7 +375,7 @@ BNDRY is an Australian platform. All schemas must use Australian conventions unl
 - **Gaming terminology**: Use **"player"** (not "gambler"). BNDRY schemas serve clubs, casinos, and gaming venues where "player" is the standard, neutral, customer-respecting term — "gambler" carries pejorative and stigmatising connotations that don't fit a regulated-customer context. Applies to labels, option values, help text, and placeholders. Only use "gambler" if the user explicitly asks for it, or if quoting legislation/regulator material that uses the term verbatim.
 - **No club-specific names**: Never embed specific club, venue, or brand names (e.g. "Souths", "The Juniors", "Easts", "Wests", "Norths", "[Club Name] Loyalty Member", "Top 30 [Venue]") in schema labels, option values, help text, placeholders, or examples. BNDRY schemas are reused across many tenants — a Souths-specific label is wrong everywhere else. Use generic equivalents: "high-tier loyalty member", "high-value player", "the venue", "the club". If the user pastes content containing a club-specific name, **ask before stripping or replacing it** — they may have pasted source material from a specific tenant and want the generic version, or they may genuinely need a tenant-specific schema. Don't silently rewrite; flag and confirm. Same rule for input documents the user references — assume the source is one tenant's flavour of a generic form.
 - **Citizenship**: Reference Australia, not the United States.
-- **BNDRY style reference** — all prose-bearing fields (`help`, `placeholder`, `$el` heading text) must follow `references/bndry-style-reference.md`. Read it before writing those values. Key rules: sentence case, Australian English (`-ise`, `-our`, `-re`), no full stops inside acronyms, single space after full stops, no banned filler phrases (`please note`, `in order to`, `utilise`, `leverage`).
+- **BNDRY style** — all prose-bearing fields (`help`, `placeholder`, `$el` heading text) follow these rules: sentence case, Australian English (`-ise`, `-our`, `-re`), no full stops inside acronyms, single space after full stops, no banned filler phrases (`please note`, `in order to`, `utilise`, `leverage`). These cover schema work; the full BNDRY style guide is `references/bndry-style-reference.md` — consult it only when unsure about a specific term, name, or convention (regulator names, legislation citation, apostrophes in compliance terminology).
   - **Field labels and option labels stay in Title Case** ("Date of Birth", "Source of Funds", "Full-time") — deliberate UI convention for form-field captions in dense Settings layouts. This is the one departure from the reference's sentence-case default.
 - **Dates**: Use `$formkit: "datepicker"` (FormKit Pro) for all date-only fields — not `$formkit: "date"` (native HTML). Native date inputs have inconsistent mobile UX, no BNDRY theming, and submit ISO `YYYY-MM-DD` strings. The standard datepicker config:
 
