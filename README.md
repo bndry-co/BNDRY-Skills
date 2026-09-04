@@ -7,6 +7,7 @@ LLM skills that help users work with specific BNDRY product features.
 - [About](#about)
 - [Available skills](#available-skills)
 - [Using a skill](#using-a-skill)
+  - [Nix and Home Manager](#nix-and-home-manager)
   - [The free path — paste into any chat](#the-free-path--paste-into-any-chat)
   - [Save setup time with a paid plan](#save-setup-time-with-a-paid-plan)
     - [Claude.ai (Pro, Max, or Team)](#claudeai-pro-max-or-team)
@@ -42,6 +43,57 @@ Each skill directory has the same shape:
 ## Using a skill
 
 The skills work with any LLM. The [free path](#the-free-path--paste-into-any-chat) below works on free tiers of ChatGPT, Claude.ai, Gemini, and others — no paid subscription required. If you'll be using a skill regularly, [save setup time with a paid plan](#save-setup-time-with-a-paid-plan) lets you load the skill once instead of pasting it into every chat.
+
+### Nix and Home Manager
+
+The source catalog, FlakeHub releases, and binary cache are public. Consume the latest published release directly from FlakeHub:
+
+```nix
+inputs.bndry-skills = {
+  url = "https://flakehub.com/f/bndry-co/BNDRY-Skills/*";
+  inputs.nixpkgs.follows = "nixpkgs";
+};
+```
+
+Alternatively, consume the public GitHub source directly:
+
+```nix
+inputs.bndry-skills = {
+  url = "github:bndry-co/BNDRY-Skills";
+  inputs.nixpkgs.follows = "nixpkgs";
+};
+```
+
+When combining this module with another BNDRY skills catalog, point both inputs at one shared `agent-skills` input with `inputs.<catalog>.inputs.agent-skills.follows = "agent-skills"`. Their selected skills are merged before either module updates an enabled destination, so activation order does not remove skills.
+
+Import and configure the Home Manager module:
+
+```nix
+{
+  imports = [inputs.bndry-skills.homeModules.default];
+
+  bndry.skills = {
+    enable = true;
+    selected = [
+      "bndry-custom-fields-schema"
+      "bndry-formkit-schema"
+    ];
+  };
+
+  # Global activation and target policy belong to the consuming configuration.
+  programs.agent-skills = {
+    enable = true;
+    targets = {
+      agents.enable = true; # ~/.agents/skills
+      claude.enable = true; # ~/.claude/skills
+    };
+  };
+}
+```
+
+All public skills are selected by default when `bndry.skills.enable` is true. Set `selected` to a subset to restrict them. The current portable skills are installed into both the generic `agents` and Claude Code destinations when those targets are enabled; disable either destination with `programs.agent-skills.targets.<agents|claude>.enable = false`. Native `programs.agent-skills.sources`, including project-local sources, continue to compose with this catalog.
+
+The module adds each selected skill's bare-command dependencies to `home.packages`. Separately buildable store bundles are available as `packages.<system>.bndry-skills-agents` and `packages.<system>.bndry-skills-claude`; `default` aliases the generic bundle. `homeManagerModules.default` is an alias for `homeModules.default`.
 
 ### The free path — paste into any chat
 
