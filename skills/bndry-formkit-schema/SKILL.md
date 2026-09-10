@@ -151,7 +151,7 @@ Items tagged **[auto]** are verified mechanically by [scripts/validate_schema.py
 - [ ] Every step has `stepInnerClass: "grid grid-cols-2 gap-4"` [auto]
 - [ ] Every `$formkit` direct step child has `outerClass: "!col-span-2"` or `"!col-span-1"` [auto]
 - [ ] Every `$el` direct step child (including conditional div wrappers) has `!col-span-2` in `attrs.class` [auto]
-- [ ] No layout-only `$el` div wrappers (use `!col-span-1` pairs on children directly)
+- [ ] No layout-only `$el` div wrappers, grid class or not — including the whole form wrapped in one outer div (use `!col-span-1` pairs on children directly, or a proper `step`)
 - [ ] Repeaters have `outerClass: "!max-w-none !col-span-2"` [auto]; repeaters with short-field children have `contentClass: "grid grid-cols-2 gap-4"`
 - [ ] All `$el` h2 and h3 elements use `!block` (not `!inline-flex`) [auto]
 - [ ] At most one h3 heading per step by default; no "Section N" numbered headings [auto]; distinct topics live in separate steps (see Steps vs sections guidance)
@@ -209,7 +209,7 @@ Items tagged **[auto]** are verified mechanically by [scripts/validate_schema.py
 
 ### Form Skeleton
 
-Every BNDRY form must use the multi-step skeleton for full-width rendering. Use [multi-step-skeleton.json](templates/multi-step-skeleton.json) as a starting point. (The skeleton's heading colour tokens were verified against the theme's label tokens as of June 2026 — if they've since diverged, references/bndry-theme-reference.md is authoritative.)
+Every BNDRY form must use the multi-step skeleton for full-width rendering — **including a form that only has one step.** A single-step form is a `multi-step` node wrapping exactly one `step`, with `tabsClass: "!hidden"` (see below) since a one-dot progress bar has nothing to show; it is never a bare `$formkit: "form"` or a hand-rolled `$el: "div"` carrying the grid layout. Skipping the skeleton for a "simple" form is exactly what breaks full-width rendering, grid placement, and the read-only review step (see the layout-only-div failure mode below) — one step is a reasonable form shape, skipping the structure around it is not. Use [multi-step-skeleton.json](templates/multi-step-skeleton.json) as a starting point. (The skeleton's heading colour tokens were verified against the theme's label tokens as of June 2026 — if they've since diverged, references/bndry-theme-reference.md is authoritative.)
 
 **The schema root must be a JSON array** — the top-level value must start with `[` and end with `]`, even when the form has a single root multi-step node. BNDRY stores the schema as a list of nodes and only accepts a JSON array root. If you submit a schema whose root is a JSON **object** (e.g. `{ "$formkit": "multi-step", ... }` instead of `[ { "$formkit": "multi-step", ... } ]`), the save is rejected before the request reaches the server and the user sees only a generic "Error creating form" toast.
 
@@ -225,7 +225,7 @@ The centralised theme constrains multi-step form width by default. To get full-w
 
 Each step needs a `name` and a short `label` (appears in the tab bar).
 
-**Hiding the progress/tab bar.** The whole bar lives in the `multi-step__tabs` section; the prev/next buttons live in separate sections, so hiding the bar leaves navigation intact. On long forms the step labels squish together and can't be made legible no matter the styling — when that happens (or when prev/next is navigation enough), hide it with `tabsClass: "!hidden"` on the multi-step root. The `!important` is required because the multistep addon ships a high-specificity `display:flex` on `.formkit-tabs` that a plain `hidden` can't beat.
+**Hiding the progress/tab bar.** The whole bar lives in the `multi-step__tabs` section; the prev/next buttons live in separate sections, so hiding the bar leaves navigation intact. On long forms the step labels squish together and can't be made legible no matter the styling; a single-step form has nothing to show progress through — either case, hide it with `tabsClass: "!hidden"` on the multi-step root. The `!important` is required because the multistep addon ships a high-specificity `display:flex` on `.formkit-tabs` that a plain `hidden` can't beat.
 
 ```json
 "tab-style": "progress",
@@ -268,7 +268,7 @@ Keep `tab-style: "progress"` set regardless — deleting the `tabsClass` line re
 }
 ```
 
-**Layout-only `$el: "div"` wrappers** (no `if`, no `key`, no meaningful class — used purely to group fields) must be removed. Give the children `!col-span-1` or `!col-span-2` directly instead. These wrappers are no-ops in a CSS grid context.
+**Layout-only `$el: "div"` wrappers** — any `$el: "div"` with no `if` and no `key` whose only job is grouping or laying out its children, whether or not it carries a grid/layout class — must be removed. Give the children `!col-span-1` or `!col-span-2` directly instead (or, for a whole form's fields, put the grid on a proper `step`, per the multi-step skeleton). These wrappers are no-ops in a CSS grid context, and — more seriously — the read-only review step cannot see through any `$el: "div"` (layout-only or conditional) to the fields nested inside it, so a form wrapped this way shows a blank review with no error. This applies to the *whole form* being wrapped in one outer div just as much as to a stray wrapper around a few fields.
 
 **Prefer steps over numbered sections.** The default behaviour is to break form content up into separate steps — not into "Section 1", "Section 2", "Section 3" headings within a single step. Steps make the progress bar meaningful, give users a sense of momentum, let them save and resume work mid-form, and surface conditional logic cleanly via `if` on the step node. Numbered section headings inside a single step bury structure that the multi-step UI is designed to surface.
 
@@ -681,6 +681,7 @@ Every one of these is a real failure mode. Ordered from worst to least bad.
 | File rejected despite being in `accept` list | `accept` includes an extension not in the plugin's supported list (e.g. `.mp4`, `.mov`, `.gif`, `.msg`, `.eml`) — the browser picker shows the file as selectable but `fileExt` validation rejects it on upload | Only use extensions from the plugin's supported list: `doc, docx, ppt, pptx, xls, xlsx, csv, txt, odt, ods, odp, pdf, jpg, jpeg, png` |
 | Draft pre-fills wrong fields after schema rename | Field or step `name` changed after deployment — localStorage drafts are keyed by old names; stale values pre-populate into wrong fields | Treat `name` changes on deployed schemas as a breaking change; coordinate with users or accept drafts will be stale |
 | Fields have no grid placement | `stepInnerClass` missing from step — `!col-span-1`/`!col-span-2` on fields have no effect without a CSS grid parent | Add `stepInnerClass: "grid grid-cols-2 gap-4"` to every step |
+| Read-only review step renders blank, no error | The whole form (or a block of fields) is wrapped in an `$el: "div"` — layout-only or conditional — instead of a proper `step`/field structure. Every field nested in the wrapper goes missing from the review, even though the plain edit form renders fine | Remove the wrapper div; use `!col-span-1`/`!col-span-2` on fields directly, put the grid on a `step`, and use `if`+`key` on the step itself instead of wrapping its content in a conditional div |
 | Fields span wrong width | `$formkit` field missing `outerClass` with `!col-span-1`/`!col-span-2` | Add `outerClass: "!col-span-2"` or `"!col-span-1"` to every direct-step-child field — do not include `!max-w-none` (the theme's global outer already handles `max-w-none` for all `$formkit` inputs) |
 | `$el` elements bleed to full row or collapse | `$el` node (heading, description div, conditional wrapper) missing `!col-span-2` in `attrs.class` — renders in a single grid column | Append `!col-span-2` to `attrs.class` on every `$el` direct step child |
 | `$el` elements run together | Adjacent `$el` nodes (headings, text divs) have no automatic spacing from the theme engine | Add `mb-4 !col-span-2` to intro text wrapper divs, `mt-2` to h3 after h2, `mt-4 mb-6 !col-span-2` to computed display blocks |
