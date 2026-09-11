@@ -1,0 +1,51 @@
+on:
+  pull_request:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - v?[0-9]+.[0-9]+.[0-9]+*
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  DeterminateCI:
+    uses: DeterminateSystems/ci/.github/workflows/workflow.yml@main
+    permissions:
+      id-token: write
+      contents: read
+    with:
+      runner-map: |
+        {
+          "aarch64-darwin": "blacksmith-6vcpu-macos-latest"
+        }
+      visibility: public
+
+  FlakeHub:
+    if: github.event_name == 'push'
+    needs: DeterminateCI
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: DeterminateSystems/determinate-nix-action@v3
+      - name: Publish rolling release to FlakeHub
+        if: startsWith(github.ref, 'refs/heads/')
+        uses: DeterminateSystems/flakehub-push@v6
+        with:
+          visibility: public
+          rolling: true
+          include-output-paths: true
+      - name: Publish tagged release to FlakeHub
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: DeterminateSystems/flakehub-push@v6
+        with:
+          visibility: public
+          tag: ${{ github.ref_name }}
+          include-output-paths: true
