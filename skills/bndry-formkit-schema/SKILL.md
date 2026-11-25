@@ -51,7 +51,6 @@ The full route index with every page URL is in [references/docs-index.md](refere
 | Configuration | `/essentials/configuration` |
 | Architecture | `/essentials/architecture` |
 | Multi-step plugin | `/plugins/multi-step` |
-| LocalStorage plugin | `/plugins/local-storage` |
 | Specific input type | `/inputs/<type>` (e.g. `/inputs/datepicker`, `/inputs/repeater`, `/inputs/select`) |
 
 Start with the specific `/inputs/<type>` page for the input you're working with, then branch out to essentials or plugins as needed. See [references/docs-index.md](references/docs-index.md) for the complete list.
@@ -145,7 +144,7 @@ Items tagged **[auto]** are verified mechanically by [scripts/validate_schema.py
 
 **D. Layout / configuration:**
 
-- [ ] Multi-step root has `tab-style: "progress"`, `outerClass`/`wrapperClass` set to `"!max-w-none"` (no `!w-full`), and no `allow-incomplete` property [auto]
+- [ ] Multi-step root has `tab-style: "progress"`, `outerClass`/`wrapperClass` set to `"!max-w-none"` (no `!w-full`), and no `allow-incomplete` property [auto] — it is allowed temporarily on the root for local testing (lets steps advance without passing validation), and the validator blocks it so it can't be deployed
 - [ ] If the progress bar is hidden (`tabsClass: "!hidden"`), confirmed with BNDRY that the `!hidden` utility is enabled for schemas AND every step has its own `$el` h2 heading as first child
 - [ ] No non-standard utility class used — only classes BNDRY has compiled into its stylesheet have any effect (see references/bndry-theme-reference.md for the safe set); anything else silently does nothing
 - [ ] Every step has `stepInnerClass: "grid grid-cols-2 gap-4"` [auto]
@@ -213,7 +212,7 @@ Every BNDRY form must use the multi-step skeleton for full-width rendering — *
 
 **The schema root must be a JSON array** — the top-level value must start with `[` and end with `]`, even when the form has a single root multi-step node. BNDRY stores the schema as a list of nodes and only accepts a JSON array root. If you submit a schema whose root is a JSON **object** (e.g. `{ "$formkit": "multi-step", ... }` instead of `[ { "$formkit": "multi-step", ... } ]`), the save is rejected before the request reaches the server and the user sees only a generic "Error creating form" toast.
 
-The centralised theme constrains multi-step form width by default. To get full-width rendering, add `outerClass` and `wrapperClass` directly on the multi-step node — do **not** use `sections-schema` attrs (they don't override the theme):
+For full-width rendering, add `outerClass` and `wrapperClass` directly on the multi-step node — do **not** use `sections-schema` attrs (they don't override the theme):
 
 ```json
 "tab-style": "progress",
@@ -239,8 +238,6 @@ Each step needs a `name` and a short `label` (appears in the tab bar).
 Keep `tab-style: "progress"` set regardless — deleting the `tabsClass` line reverts cleanly.
 
 **When the bar is hidden, every step MUST carry its own `$el: "h2"` heading as its first child** — with the tab bar gone, that heading is the only "where am I" cue the user has. (Steps should already have these per the styling rules; it becomes mandatory once the bar is hidden.) Do not reach for `hideProgressLabels` for this — it only drops the tab text and leaves the dots/connectors, which is rarely what you want.
-
-**Draft autosave** — all portal forms auto-save form state to the browser's localStorage every second (30-minute expiry). On reload, users are prompted to continue their draft or discard it. The draft key is derived from the workspace form record's name — not the schema's `name` property. However, **renaming fields or steps** in a schema after a form has been deployed causes existing user drafts to pre-populate stale values into the wrong fields. Treat `name` changes on deployed schemas as a breaking change — coordinate with users or accept that in-progress drafts will be stale.
 
 **Every step must have `stepInnerClass: "grid grid-cols-2 gap-4"`** — this enables 2-column grid layout for the step's direct children. Without it, `!col-span-1` and `!col-span-2` on child fields have no effect.
 
@@ -301,7 +298,7 @@ The "at most one h3 heading per step" rule still applies as a default — break 
 
 Standard: `text`, `textarea`, `select`, `radio`, `checkbox`, `date`, `datetime-local`, `file`, `number`, `email`, `tel`, `url`, `hidden`
 
-FormKit Pro (pre-registered in BNDRY): `datepicker`, `dropdown`, `repeater`, `currency`, `mask`, `autocomplete`, `slider`, `rating`, `taglist`, `toggle`, `togglebuttons`, `colorpicker`, `transferList`, `unit`
+FormKit Pro (pre-registered in BNDRY): `datepicker`, `dropdown`, `repeater`, `currency`, `mask`, `autocomplete`, `slider`, `rating`, `taglist`, `toggle`, `togglebuttons`, `colorpicker`, `transferlist`, `unit`
 
 BNDRY Custom: `signature`
 
@@ -321,9 +318,7 @@ At build, edit, and audit time, schemas must be evaluated against [references/bn
 **Key facts from the theme** (verify current values against references/bndry-theme-reference.md — do not rely on this list alone):
 
 - **Global `outer` section** — the theme applies `max-w-none` to all `$formkit` inputs by default. `!col-span-1`/`!col-span-2` in `outerClass` are safe because the theme sets no `col-span` or grid placement classes on fields.
-- **`multi-step__outer`** — the theme constrains multi-step width (narrower than `max-w-none`). `outerClass: "!max-w-none"` on the multi-step root overrides this to get full-width rendering.
 - **`multi-step__wrapper`** — `tab-style: "progress"` activates a set of `group-data-[tab-style=progress]/wrapper:` selectors across `multi-step__tabs`, `multi-step__tab`, and `multi-step__badge` — providing step dots, connector lines, visited/active colour changes, and full dark mode support. These styles do not activate without the `tab-style` attribute.
-- **`repeater__outer`** — the theme constrains repeater width (narrower than `max-w-none`). `outerClass: "!max-w-none"` on repeaters overrides this.
 - **`repeater__content`** — the theme applies a flex column layout by default. `contentClass: "grid grid-cols-2 gap-4"` overrides the display to grid. This is the correct and safe pattern.
 - **`stepInnerClass`** — the theme defines nothing for this prop. It must always be set explicitly on every step: `"stepInnerClass": "grid grid-cols-2 gap-4"`.
 - **Grid placement classes** — the theme does not set `col-span`, `gap-`, or `grid-cols-` classes on fields or steps (only inside the datepicker's internal calendar UI, which never affects step or field layout). Grid placement classes in `outerClass`/`contentClass`/`stepInnerClass` have zero conflict risk.
@@ -679,7 +674,6 @@ Every one of these is a real failure mode. Ordered from worst to least bad.
 | Date+time datepicker completely non-interactive | `format.time: "2-digit"` — not a valid datepicker time format value. Causes the field to lock entirely: no typing, no picker, nothing. Affects fields with `sequence: ["day", "time"]` | Use `format.time: "short"` for all date+time datepicker fields |
 | File double-validation errors | `fileExt`, `fileSize`, or `fileUpload` added manually to `validation` string — BNDRY's file handling already applies these automatically | Remove manual file validation rules; the plugin handles them |
 | File rejected despite being in `accept` list | `accept` includes an extension not in the plugin's supported list (e.g. `.mp4`, `.mov`, `.gif`, `.msg`, `.eml`) — the browser picker shows the file as selectable but `fileExt` validation rejects it on upload | Only use extensions from the plugin's supported list: `doc, docx, ppt, pptx, xls, xlsx, csv, txt, odt, ods, odp, pdf, jpg, jpeg, png` |
-| Draft pre-fills wrong fields after schema rename | Field or step `name` changed after deployment — localStorage drafts are keyed by old names; stale values pre-populate into wrong fields | Treat `name` changes on deployed schemas as a breaking change; coordinate with users or accept drafts will be stale |
 | Fields have no grid placement | `stepInnerClass` missing from step — `!col-span-1`/`!col-span-2` on fields have no effect without a CSS grid parent | Add `stepInnerClass: "grid grid-cols-2 gap-4"` to every step |
 | Read-only review step renders blank, no error | The whole form (or a block of fields) is wrapped in an `$el: "div"` — layout-only or conditional — instead of a proper `step`/field structure. Every field nested in the wrapper goes missing from the review, even though the plain edit form renders fine | Remove the wrapper div; use `!col-span-1`/`!col-span-2` on fields directly, put the grid on a `step`, and use `if`+`key` on the step itself instead of wrapping its content in a conditional div |
 | Fields span wrong width | `$formkit` field missing `outerClass` with `!col-span-1`/`!col-span-2` | Add `outerClass: "!col-span-2"` or `"!col-span-1"` to every direct-step-child field — do not include `!max-w-none` (the theme's global outer already handles `max-w-none` for all `$formkit` inputs) |
